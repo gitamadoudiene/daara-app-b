@@ -42,12 +42,14 @@ import {
 } from 'lucide-react';
 
 // Import page components (we'll create these)
-import { MyClasses } from './teacher/MyClasses';
-import { GradesAssessment } from './teacher/GradesAssessment';
-import { Attendance } from './teacher/Attendance';
-import { HomeworkAssignments } from './teacher/HomeworkAssignments';
-import { Documents } from './teacher/Documents';
-import { ProgressReports } from './teacher/ProgressReports';
+import { 
+  MyClasses, 
+  GradesAssessment, 
+  Attendance, 
+  HomeworkAssignments, 
+  Documents, 
+  ProgressReports 
+} from './teacher';
 
 type ActivePage = 'overview' | 'classes' | 'grades' | 'attendance' | 'homework' | 'documents' | 'reports';
 
