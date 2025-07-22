@@ -219,7 +219,6 @@ export function AdministratorManagement() {
         </Dialog>
       </div>
 
-      {/* Filters */}
       <div className="flex space-x-4">
         <div className="flex-1">
           <div className="relative">
@@ -247,7 +246,6 @@ export function AdministratorManagement() {
         </Select>
       </div>
 
-      {/* Administrators List */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredAdministrators.map((admin) => (
           <Card key={admin.id} className="hover:shadow-md transition-shadow">
@@ -325,7 +323,6 @@ export function AdministratorManagement() {
         ))}
       </div>
 
-      {/* Edit Administrator Dialog */}
       <Dialog open={isEditAdminOpen} onOpenChange={setIsEditAdminOpen}>
         <DialogContent>
           <DialogHeader>
