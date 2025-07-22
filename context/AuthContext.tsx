@@ -2,7 +2,17 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 
-export type UserRole = 'admin' | 'teacher' | 'parent' | 'student';
+export type UserRole = 'super_user' | 'admin' | 'teacher' | 'parent' | 'student';
+
+export interface School {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  createdAt: string;
+  isActive: boolean;
+}
 
 export interface User {
   id: string;
@@ -10,7 +20,8 @@ export interface User {
   name: string;
   role: UserRole;
   avatar?: string;
-  school?: string;
+  schoolId?: string;
+  school?: School;
   class?: string;
   subjects?: string[];
   children?: string[];
@@ -44,21 +55,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Mock authentication - in real app, this would call your API
     await new Promise(resolve => setTimeout(resolve, 1000));
     
+    // Mock schools for demonstration
+    const mockSchools: Record<string, School> = {
+      'school1': {
+        id: 'school1',
+        name: 'Daara High School',
+        address: '123 Education Street, Learning City',
+        phone: '+1-555-0123',
+        email: 'info@daarahigh.edu',
+        createdAt: '2024-01-01',
+        isActive: true
+      },
+      'school2': {
+        id: 'school2',
+        name: 'Excellence Academy',
+        address: '456 Knowledge Avenue, Study Town',
+        phone: '+1-555-0456',
+        email: 'contact@excellence.edu',
+        createdAt: '2024-01-15',
+        isActive: true
+      }
+    };
+
     // Mock users for demonstration
     const mockUsers: Record<string, User> = {
+      'superuser@daara.com': {
+        id: '0',
+        email: 'superuser@daara.com',
+        name: 'Super Administrator',
+        role: 'super_user'
+      },
       'admin@daara.com': {
         id: '1',
         email: 'admin@daara.com',
         name: 'Admin User',
         role: 'admin',
-        school: 'Daara High School'
+        schoolId: 'school1',
+        school: mockSchools['school1']
       },
       'teacher@daara.com': {
         id: '2',
         email: 'teacher@daara.com',
         name: 'Sarah Johnson',
         role: 'teacher',
-        school: 'Daara High School',
+        schoolId: 'school1',
+        school: mockSchools['school1'],
         subjects: ['Mathematics', 'Physics']
       },
       'parent@daara.com': {
@@ -66,6 +107,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: 'parent@daara.com',
         name: 'Michael Brown',
         role: 'parent',
+        schoolId: 'school1',
+        school: mockSchools['school1'],
         children: ['Emma Brown', 'James Brown']
       },
       'student@daara.com': {
@@ -73,7 +116,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: 'student@daara.com',
         name: 'Emma Brown',
         role: 'student',
-        school: 'Daara High School',
+        schoolId: 'school1',
+        school: mockSchools['school1'],
         class: 'Grade 10-A'
       }
     };

@@ -35,11 +35,23 @@ export function DashboardLayout({ children, sidebar }: DashboardLayoutProps) {
 
   const getRoleColor = (role: UserRole) => {
     switch (role) {
+      case 'super_user': return 'bg-purple-100 text-purple-800';
       case 'admin': return 'bg-red-100 text-red-800';
       case 'teacher': return 'bg-blue-100 text-blue-800';
       case 'parent': return 'bg-green-100 text-green-800';
       case 'student': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getRoleLabel = (role: UserRole) => {
+    switch (role) {
+      case 'super_user': return 'Super Utilisateur';
+      case 'admin': return 'Administrateur';
+      case 'teacher': return 'Enseignant';
+      case 'parent': return 'Parent';
+      case 'student': return 'Étudiant';
+      default: return 'Utilisateur';
     }
   };
 
@@ -92,7 +104,7 @@ export function DashboardLayout({ children, sidebar }: DashboardLayoutProps) {
               <Menu className="h-4 w-4" />
             </Button>
             <h1 className="text-xl font-semibold">
-              {user.role.charAt(0).toUpperCase() + user.role.slice(1)} Dashboard
+              Tableau de Bord {getRoleLabel(user.role)}
             </h1>
           </div>
 
@@ -120,23 +132,23 @@ export function DashboardLayout({ children, sidebar }: DashboardLayoutProps) {
                       {user.email}
                     </p>
                     <span className={`text-xs px-2 py-1 rounded-full ${getRoleColor(user.role)}`}>
-                      {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                      {getRoleLabel(user.role)}
                     </span>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem>
                   <User className="mr-2 h-4 w-4" />
-                  Profile
+                  Profil
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                  Paramètres
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  Log out
+                  Déconnexion
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
