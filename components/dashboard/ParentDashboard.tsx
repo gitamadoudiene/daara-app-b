@@ -54,7 +54,7 @@ export function ParentDashboard() {
         <div>
           <h2 className="text-2xl font-bold">Welcome back, {user?.name}!</h2>
           <p className="text-muted-foreground">
-            Stay connected with your children's academic progress.
+            Stay connected with your children's academic progress at {user?.school?.name}.
           </p>
         </div>
 

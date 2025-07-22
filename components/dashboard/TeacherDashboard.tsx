@@ -55,7 +55,7 @@ export function TeacherDashboard() {
         <div>
           <h2 className="text-2xl font-bold">Welcome back, {user?.name}!</h2>
           <p className="text-muted-foreground">
-            Ready to inspire your students today? Here's your overview.
+            Ready to inspire your students at {user?.school?.name} today? Here's your overview.
           </p>
         </div>
 

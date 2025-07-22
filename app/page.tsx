@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/context/AuthContext';
 import { LoginForm } from '@/components/auth/LoginForm';
+import { SuperUserDashboard } from '@/components/dashboard/SuperUserDashboard';
 import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
 import { TeacherDashboard } from '@/components/dashboard/TeacherDashboard';
 import { ParentDashboard } from '@/components/dashboard/ParentDashboard';
@@ -20,6 +21,8 @@ export default function Home() {
   }
 
   switch (user.role) {
+    case 'super_user':
+      return <SuperUserDashboard />;
     case 'admin':
       return <AdminDashboard />;
     case 'teacher':

@@ -57,7 +57,7 @@ export function StudentDashboard() {
         <div>
           <h2 className="text-2xl font-bold">Welcome back, {user?.name}!</h2>
           <p className="text-muted-foreground">
-            Keep up the great work! Here's your academic overview.
+            Keep up the great work at {user?.school?.name}! Here's your academic overview.
           </p>
         </div>
 

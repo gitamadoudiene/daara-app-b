@@ -35,6 +35,7 @@ export function DashboardLayout({ children, sidebar }: DashboardLayoutProps) {
 
   const getRoleColor = (role: UserRole) => {
     switch (role) {
+      case 'super_user': return 'bg-purple-100 text-purple-800';
       case 'admin': return 'bg-red-100 text-red-800';
       case 'teacher': return 'bg-blue-100 text-blue-800';
       case 'parent': return 'bg-green-100 text-green-800';

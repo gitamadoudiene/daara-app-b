@@ -34,6 +34,7 @@ export function LoginForm() {
   };
 
   const demoCredentials = [
+    { role: 'Super User', email: 'superuser@daara.com', password: 'password' },
     { role: 'Administrator', email: 'admin@daara.com', password: 'password' },
     { role: 'Teacher', email: 'teacher@daara.com', password: 'password' },
     { role: 'Parent', email: 'parent@daara.com', password: 'password' },

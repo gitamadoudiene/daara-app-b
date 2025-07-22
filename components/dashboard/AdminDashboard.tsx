@@ -55,7 +55,7 @@ export function AdminDashboard() {
         <div>
           <h2 className="text-2xl font-bold">Welcome back, {user?.name}!</h2>
           <p className="text-muted-foreground">
-            Here's what's happening at {user?.school} today.
+            Here's what's happening at {user?.school?.name} today.
           </p>
         </div>
 
