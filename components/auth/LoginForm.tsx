@@ -24,21 +24,21 @@ export function LoginForm() {
 
     try {
       await login(email, password);
-      toast.success('Login successful!');
+      toast.success('Connexion réussie !');
     } catch (error) {
-      setError('Invalid email or password');
-      toast.error('Login failed. Please check your credentials.');
+      setError('Email ou mot de passe invalide');
+      toast.error('Échec de la connexion. Veuillez vérifier vos identifiants.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const demoCredentials = [
-    { role: 'Super User', email: 'superuser@daara.com', password: 'password' },
-    { role: 'Administrator', email: 'admin@daara.com', password: 'password' },
-    { role: 'Teacher', email: 'teacher@daara.com', password: 'password' },
+    { role: 'Super Utilisateur', email: 'superuser@daara.com', password: 'password' },
+    { role: 'Administrateur', email: 'admin@daara.com', password: 'password' },
+    { role: 'Enseignant', email: 'teacher@daara.com', password: 'password' },
     { role: 'Parent', email: 'parent@daara.com', password: 'password' },
-    { role: 'Student', email: 'student@daara.com', password: 'password' }
+    { role: 'Étudiant', email: 'student@daara.com', password: 'password' }
   ];
 
   return (
@@ -51,14 +51,14 @@ export function LoginForm() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-gray-900">DAARA</h1>
-          <p className="text-gray-600 mt-2">Academic Monitoring System</p>
+          <p className="text-gray-600 mt-2">Système de Suivi Académique</p>
         </div>
 
         <Card className="shadow-lg border-0">
           <CardHeader>
-            <CardTitle>Welcome Back</CardTitle>
+            <CardTitle>Bienvenue</CardTitle>
             <CardDescription>
-              Sign in to your account to continue
+              Connectez-vous à votre compte pour continuer
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -68,18 +68,18 @@ export function LoginForm() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder="Entrez votre email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Mot de passe</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter your password"
+                  placeholder="Entrez votre mot de passe"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -98,7 +98,7 @@ export function LoginForm() {
                 className="w-full" 
                 disabled={isLoading}
               >
-                {isLoading ? 'Signing in...' : 'Sign In'}
+                {isLoading ? 'Connexion...' : 'Se connecter'}
               </Button>
             </form>
           </CardContent>
@@ -106,9 +106,9 @@ export function LoginForm() {
 
         <Card className="shadow-lg border-0">
           <CardHeader>
-            <CardTitle className="text-sm">Demo Credentials</CardTitle>
+            <CardTitle className="text-sm">Identifiants de Démonstration</CardTitle>
             <CardDescription>
-              Use these credentials to explore different user roles
+              Utilisez ces identifiants pour explorer les différents rôles d&apos;utilisateur
             </CardDescription>
           </CardHeader>
           <CardContent>
