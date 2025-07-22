@@ -135,29 +135,30 @@ export function SchoolManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
         <div>
-          <h2 className="text-2xl font-bold">Gestion des Écoles</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-xl sm:text-2xl font-bold">Gestion des Écoles</h2>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Gérez tous les établissements scolaires du système DAARA
           </p>
         </div>
         <Dialog open={isCreateSchoolOpen} onOpenChange={setIsCreateSchoolOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
-              Créer une École
+              <span className="hidden sm:inline">Créer une École</span>
+              <span className="sm:hidden">Créer</span>
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Créer une Nouvelle École</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-lg sm:text-xl">Créer une Nouvelle École</DialogTitle>
+              <DialogDescription className="text-sm">
                 Ajouter un nouvel établissement au système DAARA.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateSchool} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="school-name">Nom de l'École</Label>
                   <Input id="school-name" placeholder="Entrez le nom de l'école" required />
@@ -208,14 +209,14 @@ export function SchoolManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total des Écoles</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Total des Écoles</CardTitle>
             <Building2 className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{schools.length}</div>
+            <div className="text-xl sm:text-2xl font-bold">{schools.length}</div>
             <p className="text-xs text-muted-foreground">
               Établissements enregistrés
             </p>
@@ -223,11 +224,11 @@ export function SchoolManagement() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Étudiants</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Étudiants</CardTitle>
             <GraduationCap className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-xl sm:text-2xl font-bold">
               {schools.reduce((acc, school) => acc + school.studentCount, 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -237,11 +238,11 @@ export function SchoolManagement() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Enseignants</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Enseignants</CardTitle>
             <BookOpen className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-xl sm:text-2xl font-bold">
               {schools.reduce((acc, school) => acc + school.teacherCount, 0)}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -251,11 +252,11 @@ export function SchoolManagement() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Administrateurs</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Administrateurs</CardTitle>
             <Shield className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-xl sm:text-2xl font-bold">
               {schools.reduce((acc, school) => acc + school.adminCount, 0)}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -274,79 +275,86 @@ export function SchoolManagement() {
         <CardContent>
           <div className="space-y-4">
             {schools.map((school) => (
-              <div key={school.id} className="border rounded-lg p-6 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between">
+              <div key={school.id} className="border rounded-lg p-4 sm:p-6 hover:shadow-md transition-shadow">
+                <div className="flex flex-col space-y-4 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
                   <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-3">
-                      <School className="h-6 w-6 text-blue-600" />
-                      <h3 className="text-xl font-semibold">{school.name}</h3>
-                      <Badge variant="outline" className={getStatusColor(school.status)}>
-                        {school.status}
-                      </Badge>
-                      <Badge className={getTypeColor(school.type)}>
-                        {school.type}
-                      </Badge>
+                    <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-3 mb-3">
+                      <div className="flex items-center space-x-2 sm:space-x-3">
+                        <School className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+                        <h3 className="text-lg sm:text-xl font-semibold">{school.name}</h3>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className={getStatusColor(school.status)}>
+                          {school.status}
+                        </Badge>
+                        <Badge className={getTypeColor(school.type)}>
+                          {school.type}
+                        </Badge>
+                      </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-muted-foreground">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 text-sm text-muted-foreground">
                       <div className="space-y-2">
                         <div className="flex items-center space-x-2">
-                          <MapPin className="h-4 w-4" />
-                          <span>{school.address}</span>
+                          <MapPin className="h-4 w-4 flex-shrink-0" />
+                          <span className="break-words">{school.address}</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Phone className="h-4 w-4" />
+                          <Phone className="h-4 w-4 flex-shrink-0" />
                           <span>{school.phone}</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Mail className="h-4 w-4" />
-                          <span>{school.email}</span>
+                          <Mail className="h-4 w-4 flex-shrink-0" />
+                          <span className="break-all">{school.email}</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <UserCheck className="h-4 w-4" />
+                          <UserCheck className="h-4 w-4 flex-shrink-0" />
                           <span>Directeur: {school.director}</span>
                         </div>
                       </div>
                       
                       <div className="space-y-2">
                         <div className="flex items-center space-x-2">
-                          <Shield className="h-4 w-4" />
+                          <Shield className="h-4 w-4 flex-shrink-0" />
                           <span>{school.adminCount} Administrateur(s)</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <BookOpen className="h-4 w-4" />
+                          <BookOpen className="h-4 w-4 flex-shrink-0" />
                           <span>{school.teacherCount} Enseignant(s)</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <GraduationCap className="h-4 w-4" />
+                          <GraduationCap className="h-4 w-4 flex-shrink-0" />
                           <span>{school.studentCount.toLocaleString()} Étudiant(s)</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Calendar className="h-4 w-4" />
+                          <Calendar className="h-4 w-4 flex-shrink-0" />
                           <span>Créée en {school.establishedYear}</span>
                         </div>
                       </div>
                     </div>
                     
                     <div className="flex items-center space-x-2 mt-3 text-xs text-muted-foreground">
-                      <Calendar className="h-3 w-3" />
+                      <Calendar className="h-3 w-3 flex-shrink-0" />
                       <span>Ajoutée le: {new Date(school.createdAt).toLocaleDateString('fr-FR')}</span>
                     </div>
                   </div>
                   
-                  <div className="flex space-x-2">
+                  <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={() => handleViewDetails(school)}
+                      className="w-full sm:w-auto"
                     >
                       <Eye className="mr-2 h-4 w-4" />
-                      Voir Détails
+                      <span className="hidden sm:inline">Voir Détails</span>
+                      <span className="sm:hidden">Détails</span>
                     </Button>
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={() => handleManageDetails(school)}
+                      className="w-full sm:w-auto"
                     >
                       <Settings className="mr-2 h-4 w-4" />
                       Gérer
@@ -361,23 +369,23 @@ export function SchoolManagement() {
 
       {/* View Details Dialog */}
       <Dialog open={isViewDetailsOpen} onOpenChange={setIsViewDetailsOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="mx-4 w-[95vw] max-w-4xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Détails de l'École: {selectedSchool?.name}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Détails de l'École: {selectedSchool?.name}</DialogTitle>
+            <DialogDescription className="text-sm">
               Informations détaillées sur l'établissement scolaire
             </DialogDescription>
           </DialogHeader>
           {selectedSchool && (
             <Tabs defaultValue="general" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="general">Général</TabsTrigger>
-                <TabsTrigger value="stats">Statistiques</TabsTrigger>
-                <TabsTrigger value="contact">Contact</TabsTrigger>
-                <TabsTrigger value="history">Historique</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+                <TabsTrigger value="general" className="text-xs sm:text-sm">Général</TabsTrigger>
+                <TabsTrigger value="stats" className="text-xs sm:text-sm">Statistiques</TabsTrigger>
+                <TabsTrigger value="contact" className="text-xs sm:text-sm">Contact</TabsTrigger>
+                <TabsTrigger value="history" className="text-xs sm:text-sm">Historique</TabsTrigger>
               </TabsList>
               <TabsContent value="general" className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div>
                     <Label>Nom de l'École</Label>
                     <p className="font-medium">{selectedSchool.name}</p>
@@ -396,9 +404,9 @@ export function SchoolManagement() {
                       {selectedSchool.status}
                     </Badge>
                   </div>
-                  <div className="col-span-2">
+                  <div className="lg:col-span-2">
                     <Label>Adresse</Label>
-                    <p className="font-medium">{selectedSchool.address}</p>
+                    <p className="font-medium break-words">{selectedSchool.address}</p>
                   </div>
                 </div>
               </TabsContent>
@@ -465,16 +473,16 @@ export function SchoolManagement() {
 
       {/* Manage Details Dialog */}
       <Dialog open={isManageDetailsOpen} onOpenChange={setIsManageDetailsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Gérer l'École: {selectedSchool?.name}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Gérer l'École: {selectedSchool?.name}</DialogTitle>
+            <DialogDescription className="text-sm">
               Modifier les informations de l'établissement scolaire
             </DialogDescription>
           </DialogHeader>
           {selectedSchool && (
             <form className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-name">Nom de l'École</Label>
                   <Input id="edit-name" defaultValue={selectedSchool.name} />

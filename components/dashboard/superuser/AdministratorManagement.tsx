@@ -176,24 +176,25 @@ export function AdministratorManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
         <div>
-          <h2 className="text-2xl font-bold">Gestion des Administrateurs</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-xl sm:text-2xl font-bold">Gestion des Administrateurs</h2>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Gérez les administrateurs de toutes les écoles du système DAARA
           </p>
         </div>
         <Dialog open={isCreateAdminOpen} onOpenChange={setIsCreateAdminOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <UserPlus className="mr-2 h-4 w-4" />
-              Créer un Administrateur
+              <span className="hidden sm:inline">Créer un Administrateur</span>
+              <span className="sm:hidden">Créer Admin</span>
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Créer un Nouvel Administrateur</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-lg sm:text-xl">Créer un Nouvel Administrateur</DialogTitle>
+              <DialogDescription className="text-sm">
                 Ajouter un nouvel administrateur et l&apos;assigner à une école.
               </DialogDescription>
             </DialogHeader>
@@ -257,14 +258,14 @@ export function AdministratorManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Administrateurs</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Administrateurs</CardTitle>
             <Shield className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{administrators.length}</div>
+            <div className="text-xl sm:text-2xl font-bold">{administrators.length}</div>
             <p className="text-xs text-muted-foreground">
               Administrateurs enregistrés
             </p>
@@ -272,11 +273,11 @@ export function AdministratorManagement() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Actifs</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Actifs</CardTitle>
             <Users className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-xl sm:text-2xl font-bold">
               {administrators.filter(admin => admin.status === 'Actif').length}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -286,11 +287,11 @@ export function AdministratorManagement() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Principaux</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Principaux</CardTitle>
             <Shield className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-xl sm:text-2xl font-bold">
               {administrators.filter(admin => admin.role === 'Principal').length}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -300,11 +301,11 @@ export function AdministratorManagement() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Écoles Couvertes</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Écoles Couvertes</CardTitle>
             <Building2 className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{schools.length}</div>
+            <div className="text-xl sm:text-2xl font-bold">{schools.length}</div>
             <p className="text-xs text-muted-foreground">
               Écoles avec administrateurs
             </p>
@@ -318,25 +319,25 @@ export function AdministratorManagement() {
           <CardTitle>Filtres et Recherche</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="search">Rechercher</Label>
+              <Label htmlFor="search" className="text-sm">Rechercher</Label>
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
                   id="search"
                   placeholder="Nom, email, école..."
-                  className="pl-8"
+                  className="pl-8 text-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="filter-school">École</Label>
+              <Label htmlFor="filter-school" className="text-sm">École</Label>
               <select 
                 id="filter-school" 
-                className="w-full p-2 border rounded-md"
+                className="w-full p-2 border rounded-md text-sm"
                 value={filterSchool}
                 onChange={(e) => setFilterSchool(e.target.value)}
               >

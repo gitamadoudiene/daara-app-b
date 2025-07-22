@@ -192,30 +192,32 @@ export function UserOverview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
         <div>
-          <h2 className="text-2xl font-bold">Vue d&apos;Ensemble des Utilisateurs</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-xl sm:text-2xl font-bold">Vue d&apos;Ensemble des Utilisateurs</h2>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Gérez tous les utilisateurs du système DAARA
           </p>
         </div>
-        <div className="flex space-x-2">
-          <Button variant="outline">
+        <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
+          <Button variant="outline" className="w-full sm:w-auto">
             <Download className="mr-2 h-4 w-4" />
-            Exporter
+            <span className="hidden sm:inline">Exporter</span>
+            <span className="sm:hidden">Export</span>
           </Button>
-          <Button>
+          <Button className="w-full sm:w-auto">
             <UserPlus className="mr-2 h-4 w-4" />
-            Ajouter Utilisateur
+            <span className="hidden sm:inline">Ajouter Utilisateur</span>
+            <span className="sm:hidden">Ajouter</span>
           </Button>
         </div>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Utilisateurs</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Utilisateurs</CardTitle>
             <Users className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>

@@ -90,33 +90,33 @@ export function GlobalSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Paramètres Globaux</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-xl sm:text-2xl font-bold">Paramètres Globaux</h2>
+        <p className="text-sm sm:text-base text-muted-foreground">
           Configuration générale de la plateforme DAARA
         </p>
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="general">Général</TabsTrigger>
-          <TabsTrigger value="security">Sécurité</TabsTrigger>
-          <TabsTrigger value="email">Email</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="database">Base de Données</TabsTrigger>
-          <TabsTrigger value="integrations">Intégrations</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+          <TabsTrigger value="general" className="text-xs sm:text-sm">Général</TabsTrigger>
+          <TabsTrigger value="security" className="text-xs sm:text-sm">Sécurité</TabsTrigger>
+          <TabsTrigger value="email" className="text-xs sm:text-sm">Email</TabsTrigger>
+          <TabsTrigger value="notifications" className="text-xs sm:text-sm">Notifications</TabsTrigger>
+          <TabsTrigger value="database" className="text-xs sm:text-sm">Base de Données</TabsTrigger>
+          <TabsTrigger value="integrations" className="text-xs sm:text-sm">Intégrations</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Settings className="h-5 w-5" />
+              <CardTitle className="flex items-center space-x-2 text-lg sm:text-xl">
+                <Settings className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span>Paramètres Généraux</span>
               </CardTitle>
-              <CardDescription>Configuration de base du système</CardDescription>
+              <CardDescription className="text-sm">Configuration de base du système</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="system-name">Nom du Système</Label>
                   <Input 

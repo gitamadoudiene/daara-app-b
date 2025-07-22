@@ -64,11 +64,11 @@ export function SuperUserDashboard() {
         <Button
           key={item.id}
           variant={item.active ? 'default' : 'ghost'}
-          className="w-full justify-start"
+          className="w-full justify-start text-left p-2 sm:p-3"
           onClick={() => setActivePage(item.id)}
         >
-          <item.icon className="mr-2 h-4 w-4" />
-          {item.label}
+          <item.icon className="mr-2 h-4 w-4 flex-shrink-0" />
+          <span className="truncate text-xs sm:text-sm">{item.label}</span>
         </Button>
       ))}
     </nav>
