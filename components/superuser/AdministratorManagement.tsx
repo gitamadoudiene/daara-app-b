@@ -159,7 +159,7 @@ export function AdministratorManagement() {
                          admin.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSchool = filterSchool === 'all' || admin.schoolId === filterSchool;
     return matchesSearch && matchesSchool;
-  })
+  });
 
   return (
     <div className="space-y-6">
