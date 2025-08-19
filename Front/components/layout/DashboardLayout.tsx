@@ -119,7 +119,9 @@ export function DashboardLayout({ children, sidebar }: DashboardLayoutProps) {
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={user.avatar} alt={user.name} />
                     <AvatarFallback>
-                      {user.name.split(' ').map(n => n[0]).join('')}
+                      {typeof user.name === 'string' && user.name.trim()
+                        ? user.name.split(' ').map(n => n[0]).join('')
+                        : 'U'}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
