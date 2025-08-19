@@ -34,11 +34,11 @@ export function LoginForm() {
   };
 
   const demoCredentials = [
-    { role: 'Super Utilisateur', email: 'superuser@daara.com', password: 'password' },
-    { role: 'Administrateur', email: 'admin@daara.com', password: 'password' },
-    { role: 'Enseignant', email: 'teacher@daara.com', password: 'password' },
-    { role: 'Parent', email: 'parent@daara.com', password: 'password' },
-    { role: 'Étudiant', email: 'student@daara.com', password: 'password' }
+    { role: 'Super Utilisateur', email: 'superuser@daara.com', password: 'password123' },
+    { role: 'Administrateur', email: 'testuser@example.com', password: 'password123' },
+    { role: 'Enseignant', email: 'teacher1@example.com', password: 'password123' },
+    { role: 'Parent', email: 'parent1@example.com', password: 'password123' },
+    { role: 'Étudiant', email: 'child1@example.com', password: 'password123' }
   ];
 
   return (

@@ -51,86 +51,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     setLoading(true);
-    
-    // Mock authentication - in real app, this would call your API
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Mock schools for demonstration
-    const mockSchools: Record<string, School> = {
-      'school1': {
-        id: 'school1',
-        name: 'Daara High School',
-        address: '123 Education Street, Learning City',
-        phone: '+1-555-0123',
-        email: 'info@daarahigh.edu',
-        createdAt: '2024-01-01',
-        isActive: true
-      },
-      'school2': {
-        id: 'school2',
-        name: 'Excellence Academy',
-        address: '456 Knowledge Avenue, Study Town',
-        phone: '+1-555-0456',
-        email: 'contact@excellence.edu',
-        createdAt: '2024-01-15',
-        isActive: true
+    try {
+      const res = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUser(data.user);
+        localStorage.setItem('daara_user', JSON.stringify(data.user));
+      } else {
+        throw new Error(data.message || 'Login failed');
       }
-    };
-
-    // Mock users for demonstration
-    const mockUsers: Record<string, User> = {
-      'superuser@daara.com': {
-        id: '0',
-        email: 'superuser@daara.com',
-        name: 'Super Administrator',
-        role: 'super_user'
-      },
-      'admin@daara.com': {
-        id: '1',
-        email: 'admin@daara.com',
-        name: 'Admin User',
-        role: 'admin',
-        schoolId: 'school1',
-        school: mockSchools['school1']
-      },
-      'teacher@daara.com': {
-        id: '2',
-        email: 'teacher@daara.com',
-        name: 'Sarah Johnson',
-        role: 'teacher',
-        schoolId: 'school1',
-        school: mockSchools['school1'],
-        subjects: ['Mathematics', 'Physics']
-      },
-      'parent@daara.com': {
-        id: '3',
-        email: 'parent@daara.com',
-        name: 'Michael Brown',
-        role: 'parent',
-        schoolId: 'school1',
-        school: mockSchools['school1'],
-        children: ['Emma Brown', 'James Brown']
-      },
-      'student@daara.com': {
-        id: '4',
-        email: 'student@daara.com',
-        name: 'Emma Brown',
-        role: 'student',
-        schoolId: 'school1',
-        school: mockSchools['school1'],
-        class: 'Grade 10-A'
-      }
-    };
-
-    const foundUser = mockUsers[email];
-    if (foundUser && password === 'password') {
-      setUser(foundUser);
-      localStorage.setItem('daara_user', JSON.stringify(foundUser));
-    } else {
-      throw new Error('Invalid credentials');
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   const logout = () => {
