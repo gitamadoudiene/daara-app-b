@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,8 +28,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+
 interface School {
-  id: string;
+  _id: string;
   name: string;
   address: string;
   phone: string;
@@ -37,11 +38,11 @@ interface School {
   adminCount: number;
   studentCount: number;
   teacherCount: number;
-  status: 'Actif' | 'Inactif' | 'Suspendu';
-  createdAt: string;
+  status: string;
   director: string;
-  establishedYear: number;
-  type: 'Public' | 'Privé' | 'Semi-public';
+  type: string;
+  establishedYear: string;
+  createdAt: string;
 }
 
 export function SchoolManagement() {
@@ -50,59 +51,48 @@ export function SchoolManagement() {
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
   const [isManageDetailsOpen, setIsManageDetailsOpen] = useState(false);
 
-  // Mock data for schools
-  const schools: School[] = [
-    {
-      id: 'school1',
-      name: 'Lycée Daara Excellence',
-      address: '123 Avenue de l\'Éducation, Dakar',
-      phone: '+221-33-123-4567',
-      email: 'info@daaraexcellence.sn',
-      adminCount: 2,
-      studentCount: 1234,
-      teacherCount: 89,
-      status: 'Actif',
-      createdAt: '2024-01-01',
-      director: 'Dr. Aminata Diop',
-      establishedYear: 1985,
-      type: 'Public'
-    },
-    {
-      id: 'school2',
-      name: 'École Privée Al-Azhar',
-      address: '456 Boulevard de la Connaissance, Thiès',
-      phone: '+221-33-456-7890',
-      email: 'contact@alazhar.sn',
-      adminCount: 1,
-      studentCount: 856,
-      teacherCount: 67,
-      status: 'Actif',
-      createdAt: '2024-01-15',
-      director: 'Prof. Mamadou Sall',
-      establishedYear: 1992,
-      type: 'Privé'
-    },
-    {
-      id: 'school3',
-      name: 'Institut Futur Leaders',
-      address: '789 Rue de l\'Innovation, Saint-Louis',
-      phone: '+221-33-789-0123',
-      email: 'admin@futureleaders.sn',
-      adminCount: 3,
-      studentCount: 2156,
-      teacherCount: 145,
-      status: 'Actif',
-      createdAt: '2024-02-01',
-      director: 'Mme. Fatou Ndiaye',
-      establishedYear: 2010,
-      type: 'Semi-public'
-    }
-  ];
+  const [schools, setSchools] = useState<School[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const handleCreateSchool = (e: React.FormEvent) => {
+  useEffect(() => {
+    setLoading(true);
+    fetch('http://localhost:5000/api/school')
+      .then(res => res.json())
+      .then(data => setSchools(data))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleCreateSchool = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    toast.success('École créée avec succès !');
-    setIsCreateSchoolOpen(false);
+    const formData = new FormData(e.currentTarget);
+    const now = new Date();
+    const newSchool = {
+      name: formData.get('name') || '',
+      address: formData.get('address') || '',
+      phone: formData.get('phone') || '',
+      email: formData.get('email') || '',
+      director: formData.get('director') || '',
+      adminCount: 0,
+      teacherCount: 0,
+      studentCount: 0,
+      createdYear: formData.get('createdYear') || '',
+      addedDate: now.toISOString(),
+      status: formData.get('status') || 'Actif',
+      type: formData.get('type') || 'Privé',
+    };
+    const res = await fetch('http://localhost:5000/api/school', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSchool)
+    });
+    if (res.ok) {
+      const created = await res.json();
+      setSchools(prev => [...prev, created]);
+      toast.success('École créée avec succès !');
+      setIsCreateSchoolOpen(false);
+    } else {
+      toast.error('Erreur lors de la création de l’école');
+    }
   };
 
   const handleViewDetails = (school: School) => {
@@ -113,6 +103,49 @@ export function SchoolManagement() {
   const handleManageDetails = (school: School) => {
     setSelectedSchool(school);
     setIsManageDetailsOpen(true);
+  };
+
+  const handleUpdateSchool = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedSchool) return;
+    const formData = new FormData(e.currentTarget);
+    const updatedSchool = {
+      name: formData.get('edit-name'),
+      address: formData.get('edit-address'),
+      phone: formData.get('edit-phone'),
+      email: formData.get('edit-email'),
+      director: formData.get('edit-director'),
+      type: formData.get('edit-type'),
+      status: formData.get('edit-status'),
+    };
+    const res = await fetch(`http://localhost:5000/api/school/${selectedSchool._id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedSchool)
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setSchools(prev => prev.map(s => s._id === updated._id ? updated : s));
+      toast.success('École mise à jour avec succès');
+      setIsManageDetailsOpen(false);
+    } else {
+      toast.error('Erreur lors de la mise à jour');
+    }
+  };
+
+  const handleDeleteSchool = async () => {
+    if (!selectedSchool) return;
+    if (!window.confirm(`Voulez-vous vraiment supprimer l'école "${selectedSchool.name}" ? Cette action est irréversible.`)) return;
+    const res = await fetch(`http://localhost:5000/api/school/${selectedSchool._id}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      setSchools(prev => prev.filter(s => s._id !== selectedSchool._id));
+      toast.success('École supprimée avec succès');
+      setIsManageDetailsOpen(false);
+    } else {
+      toast.error('Erreur lors de la suppression');
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -160,32 +193,32 @@ export function SchoolManagement() {
             <form onSubmit={handleCreateSchool} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="school-name">Nom de l'École</Label>
-                  <Input id="school-name" placeholder="Entrez le nom de l'école" required />
+                  <Label htmlFor="school-name">Nom de l&apos;École</Label>
+                  <Input id="school-name" name="name" placeholder="Entrez le nom de l'école" required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="school-director">Directeur</Label>
-                  <Input id="school-director" placeholder="Nom du directeur" required />
+                  <Input id="school-director" name="director" placeholder="Nom du directeur" required />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="school-address">Adresse</Label>
-                <Input id="school-address" placeholder="Adresse complète de l'école" required />
+                <Input id="school-address" name="address" placeholder="Adresse complète de l'école" required />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="school-phone">Téléphone</Label>
-                  <Input id="school-phone" placeholder="+221-33-XXX-XXXX" required />
+                  <Input id="school-phone" name="phone" placeholder="+221-33-XXX-XXXX" required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="school-email">Email</Label>
-                  <Input id="school-email" type="email" placeholder="email@ecole.sn" required />
+                  <Input id="school-email" name="email" type="email" placeholder="email@ecole.sn" required />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="school-type">Type d'École</Label>
-                  <select id="school-type" className="w-full p-2 border rounded-md" required>
+                  <Label htmlFor="school-type">Type d&apos;École</Label>
+                  <select id="school-type" name="type" className="w-full p-2 border rounded-md" required>
                     <option value="">Sélectionnez le type</option>
                     <option value="Public">Public</option>
                     <option value="Privé">Privé</option>
@@ -193,15 +226,20 @@ export function SchoolManagement() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="school-year">Année de Création</Label>
-                  <Input id="school-year" type="number" placeholder="2024" required />
+                  <Label htmlFor="createdYear">Année de Création</Label>
+                  <select id="createdYear" name="createdYear" required className="w-full p-2 border rounded-md">
+                    <option value="">Sélectionner une année</option>
+                    {Array.from({length: 50}, (_, i) => 1980 + i).map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setIsCreateSchoolOpen(false)}>
                   Annuler
                 </Button>
-                <Button type="submit">Créer l'École</Button>
+                <Button type="submit">Créer l&apos;École</Button>
               </div>
             </form>
           </DialogContent>
@@ -275,7 +313,7 @@ export function SchoolManagement() {
         <CardContent>
           <div className="space-y-4">
             {schools.map((school) => (
-              <div key={school.id} className="border rounded-lg p-4 sm:p-6 hover:shadow-md transition-shadow">
+              <div key={school._id} className="border rounded-lg p-4 sm:p-6 hover:shadow-md transition-shadow">
                 <div className="flex flex-col space-y-4 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
                   <div className="flex-1">
                     <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-3 mb-3">
@@ -328,14 +366,14 @@ export function SchoolManagement() {
                         </div>
                         <div className="flex items-center space-x-2">
                           <Calendar className="h-4 w-4 flex-shrink-0" />
-                          <span>Créée en {school.establishedYear}</span>
+                            <span>Créée en {school.createdYear}</span>
                         </div>
                       </div>
                     </div>
                     
                     <div className="flex items-center space-x-2 mt-3 text-xs text-muted-foreground">
                       <Calendar className="h-3 w-3 flex-shrink-0" />
-                      <span>Ajoutée le: {new Date(school.createdAt).toLocaleDateString('fr-FR')}</span>
+                      <span>Ajoutée le: {school.addedDate && !isNaN(Date.parse(school.addedDate)) ? new Date(school.addedDate).toLocaleDateString('fr-FR') : 'Date inconnue'}</span>
                     </div>
                   </div>
                   
@@ -371,9 +409,9 @@ export function SchoolManagement() {
       <Dialog open={isViewDetailsOpen} onOpenChange={setIsViewDetailsOpen}>
         <DialogContent className="mx-4 w-[95vw] max-w-4xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">Détails de l'École: {selectedSchool?.name}</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">Détails de l&apos;École: {selectedSchool?.name}</DialogTitle>
             <DialogDescription className="text-sm">
-              Informations détaillées sur l'établissement scolaire
+              Informations détaillées sur l&apos;établissement scolaire
             </DialogDescription>
           </DialogHeader>
           {selectedSchool && (
@@ -387,7 +425,7 @@ export function SchoolManagement() {
               <TabsContent value="general" className="space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div>
-                    <Label>Nom de l'École</Label>
+                    <Label>Nom de l&apos;École</Label>
                     <p className="font-medium">{selectedSchool.name}</p>
                   </div>
                   <div>
@@ -395,8 +433,8 @@ export function SchoolManagement() {
                     <p className="font-medium">{selectedSchool.director}</p>
                   </div>
                   <div>
-                    <Label>Type d'École</Label>
-                    <Badge className={getTypeColor(selectedSchool.type)}>{selectedSchool.type}</Badge>
+                    <Label>Type d&apos;École</Label>
+                    <Badge className={getTypeColor(selectedSchool.type || '')}>{selectedSchool.type}</Badge>
                   </div>
                   <div>
                     <Label>Statut</Label>
@@ -458,11 +496,11 @@ export function SchoolManagement() {
                 <div className="space-y-2">
                   <div>
                     <Label>Année de Création</Label>
-                    <p className="font-medium">{selectedSchool.establishedYear}</p>
+                    <p className="font-medium">{selectedSchool.createdYear || 'Non renseignée'}</p>
                   </div>
                   <div>
                     <Label>Ajoutée au Système</Label>
-                    <p className="font-medium">{new Date(selectedSchool.createdAt).toLocaleDateString('fr-FR')}</p>
+                    <p className="font-medium">{selectedSchool.addedDate && !isNaN(Date.parse(selectedSchool.addedDate)) ? new Date(selectedSchool.addedDate).toLocaleDateString('fr-FR') : 'Non renseignée'}</p>
                   </div>
                 </div>
               </TabsContent>
@@ -475,53 +513,55 @@ export function SchoolManagement() {
       <Dialog open={isManageDetailsOpen} onOpenChange={setIsManageDetailsOpen}>
         <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">Gérer l'École: {selectedSchool?.name}</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">Gérer l&apos;École: {selectedSchool?.name}</DialogTitle>
             <DialogDescription className="text-sm">
-              Modifier les informations de l'établissement scolaire
+              Modifier les informations de l&apos;établissement scolaire
             </DialogDescription>
           </DialogHeader>
           {selectedSchool && (
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={handleUpdateSchool}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-name">Nom de l'École</Label>
-                  <Input id="edit-name" defaultValue={selectedSchool.name} />
+                  <Label htmlFor="edit-name">Nom de l&apos;École</Label>
+                  <Input id="edit-name" name="edit-name" value={selectedSchool.name || ''} onChange={e => setSelectedSchool(s => s ? { ...s, name: e.target.value } : s)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-director">Directeur</Label>
-                  <Input id="edit-director" defaultValue={selectedSchool.director} />
+                  <Input id="edit-director" name="edit-director" value={selectedSchool.director || ''} onChange={e => setSelectedSchool(s => s ? { ...s, director: e.target.value } : s)} />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-address">Adresse</Label>
-                <Input id="edit-address" defaultValue={selectedSchool.address} />
+                <Input id="edit-address" name="edit-address" value={selectedSchool.address || ''} onChange={e => setSelectedSchool(s => s ? { ...s, address: e.target.value } : s)} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-phone">Téléphone</Label>
-                  <Input id="edit-phone" defaultValue={selectedSchool.phone} />
+                  <Input id="edit-phone" name="edit-phone" value={selectedSchool.phone || ''} onChange={e => setSelectedSchool(s => s ? { ...s, phone: e.target.value } : s)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">Email</Label>
-                  <Input id="edit-email" type="email" defaultValue={selectedSchool.email} />
+                  <Input id="edit-email" name="edit-email" type="email" value={selectedSchool.email || ''} onChange={e => setSelectedSchool(s => s ? { ...s, email: e.target.value } : s)} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-type">Type d'École</Label>
-                  <select id="edit-type" className="w-full p-2 border rounded-md" defaultValue={selectedSchool.type}>
+                  <Label htmlFor="edit-type">Type d&apos;École</Label>
+                  <select id="edit-type" name="edit-type" className="w-full p-2 border rounded-md" value={selectedSchool.type || ''} onChange={e => setSelectedSchool(s => s ? { ...s, type: e.target.value } : s)}>
                     <option value="Public">Public</option>
                     <option value="Privé">Privé</option>
                     <option value="Semi-public">Semi-public</option>
                   </select>
+                  {/* Pour une meilleure expérience utilisateur, remplacez ce <select> par un composant de liste déroulante avec recherche, par exemple react-select */}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-status">Statut</Label>
-                  <select id="edit-status" className="w-full p-2 border rounded-md" defaultValue={selectedSchool.status}>
+                  <select id="edit-status" name="edit-status" className="w-full p-2 border rounded-md" value={selectedSchool.status || ''} onChange={e => setSelectedSchool(s => s ? { ...s, status: e.target.value } : s)}>
                     <option value="Actif">Actif</option>
                     <option value="Inactif">Inactif</option>
                     <option value="Suspendu">Suspendu</option>
                   </select>
+                  {/* Pour une meilleure expérience utilisateur, remplacez ce <select> par un composant de liste déroulante avec recherche, par exemple react-select */}
                 </div>
               </div>
               <div className="flex justify-end space-x-2">
@@ -531,21 +571,13 @@ export function SchoolManagement() {
                 <Button 
                   type="button" 
                   variant="destructive"
-                  onClick={() => {
-                    toast.success('École supprimée avec succès');
-                    setIsManageDetailsOpen(false);
-                  }}
+                  onClick={handleDeleteSchool}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Supprimer
                 </Button>
                 <Button 
                   type="submit"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    toast.success('École mise à jour avec succès');
-                    setIsManageDetailsOpen(false);
-                  }}
                 >
                   <Edit className="mr-2 h-4 w-4" />
                   Sauvegarder
