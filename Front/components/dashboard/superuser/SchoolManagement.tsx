@@ -52,13 +52,28 @@ export function SchoolManagement() {
   const [isManageDetailsOpen, setIsManageDetailsOpen] = useState(false);
 
   const [schools, setSchools] = useState<School[]>([]);
+  const [adminCounts, setAdminCounts] = useState<{ [schoolId: string]: number }>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     fetch('http://localhost:5000/api/school')
       .then(res => res.json())
-      .then(data => setSchools(data))
+      .then(async (data) => {
+        setSchools(data);
+        // Fetch admin counts for each school
+        const counts: { [schoolId: string]: number } = {};
+        await Promise.all(data.map(async (school: any) => {
+          const res = await fetch(`http://localhost:5000/api/admin/count/${school._id}`);
+          if (res.ok) {
+            const result = await res.json();
+            counts[school._id] = result.count;
+          } else {
+            counts[school._id] = 0;
+          }
+        }));
+        setAdminCounts(counts);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -354,7 +369,7 @@ export function SchoolManagement() {
                       <div className="space-y-2">
                         <div className="flex items-center space-x-2">
                           <Shield className="h-4 w-4 flex-shrink-0" />
-                          <span>{school.adminCount} Administrateur(s)</span>
+                          <span>{adminCounts[school._id] ?? 0} Administrateur(s)</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <BookOpen className="h-4 w-4 flex-shrink-0" />
