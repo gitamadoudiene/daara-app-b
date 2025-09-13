@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,12 +53,16 @@ export function AdministratorManagement() {
   const [filterSchool, setFilterSchool] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
-  // Mock data for schools
-  const schools: School[] = [
-    { id: 'school1', name: 'Lycée Daara Excellence' },
-    { id: 'school2', name: 'École Privée Al-Azhar' },
-    { id: 'school3', name: 'Institut Futur Leaders' }
-  ];
+  const [schools, setSchools] = useState<School[]>([]);
+  // Récupère les écoles depuis l'API au montage
+  useEffect(() => {
+    fetch('http://localhost:5000/api/school')
+      .then(res => res.json())
+      .then(data => {
+        setSchools(data.map((school: any) => ({ id: school._id, name: school.name })));
+      })
+      .catch(() => setSchools([]));
+  }, []);
 
   // Mock data for administrators
   const administrators: Administrator[] = [
@@ -132,22 +136,60 @@ export function AdministratorManagement() {
   const handleCreateAdmin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const name = formData.get('admin-name')?.toString().trim();
+    const email = formData.get('admin-email')?.toString().trim();
+    const password = formData.get('password')?.toString() || 'password123';
+    const phone = formData.get('admin-phone')?.toString().trim();
+    const role = formData.get('admin-role')?.toString();
+    const school = formData.get('school')?.toString();
+    const permissions = ['Gestion complète', 'Rapports', 'Utilisateurs', 'Paramètres'].filter((perm, idx) => {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+      return checkboxes[idx]?.checked;
+    });
+
+    // Validation des champs
+    if (!name) {
+      toast.error('Le nom complet est obligatoire.');
+      return;
+    }
+    if (!email) {
+      toast.error('L\'email est obligatoire.');
+      return;
+    }
+    const emailRegex = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
+    if (!emailRegex.test(email)) {
+      toast.error('Format d\'email invalide.');
+      return;
+    }
+    if (!password || password.length < 6) {
+      toast.error('Le mot de passe est obligatoire et doit contenir au moins 6 caractères.');
+      return;
+    }
+    if (!phone) {
+      toast.error('Le téléphone est obligatoire.');
+      return;
+    }
+    if (!role) {
+      toast.error('Le rôle est obligatoire.');
+      return;
+    }
+    if (!school) {
+      toast.error('L\'école est obligatoire.');
+      return;
+    }
+
     const payload = {
-      name: formData.get('admin-name'),
-      email: formData.get('admin-email'),
-      password: formData.get('password') || 'password123',
-      phone: formData.get('admin-phone'),
-      role: formData.get('admin-role'),
-      school: formData.get('admin-school'),
-      permissions: [
-        ...(['Gestion complète', 'Rapports', 'Utilisateurs', 'Paramètres'].filter((perm, idx) => {
-          const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-          return checkboxes[idx]?.checked;
-        }))
-      ]
+      name,
+      email,
+      password,
+      phone,
+      role,
+      school,
+      permissions
     };
     try {
-      const res = await fetch('/api/admin', {
+  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  const res = await fetch(`${backendUrl}/api/admin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -231,11 +273,11 @@ export function AdministratorManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="admin-name">Nom Complet</Label>
-                  <Input id="admin-name" placeholder="Entrez le nom complet" required />
+                  <Input id="admin-name" name="admin-name" placeholder="Entrez le nom complet" required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="admin-email">Email</Label>
-                  <Input id="admin-email" type="email" placeholder="email@ecole.sn" required />
+                  <Input id="admin-email" name="admin-email" type="email" placeholder="email@ecole.sn" required />
                 </div>
               </div>
                 <div className="space-y-2">
@@ -245,11 +287,12 @@ export function AdministratorManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="admin-phone">Téléphone</Label>
-                  <Input id="admin-phone" placeholder="+221-77-XXX-XXXX" required />
+                  <Input id="admin-phone" name="admin-phone" placeholder="+221-77-XXX-XXXX" required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="admin-role">Rôle</Label>
-                  <select id="admin-role" className="w-full p-2 border rounded-md" required>
+                  {/* select supprimé, doublon corrigé */}
+                <select id="admin-role" name="admin-role" className="w-full p-2 border rounded-md" required>
                     <option value="">Sélectionnez un rôle</option>
                     <option value="Principal">Principal</option>
                     <option value="Adjoint">Adjoint</option>
@@ -259,7 +302,8 @@ export function AdministratorManagement() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="admin-school">Assigner à une École</Label>
-                <select id="admin-school" className="w-full p-2 border rounded-md" required>
+                {/* select supprimé, doublon corrigé */}
+                <select id="admin-school" name="school" className="w-full p-2 border rounded-md" required>
                   <option value="">Sélectionnez une école</option>
                   {schools.map((school) => (
                     <option key={school.id} value={school.id}>
