@@ -12,7 +12,10 @@ const Admin = require('../models/Admin');
 
 exports.createAdmin = async (req, res) => {
   try {
-    const admin = new Admin(req.body);
+    const admin = new Admin({
+      ...req.body,
+      permissions: req.body.permissions || []
+    });
     await admin.save();
     // Création du User lié avec mot de passe hashé
     const User = require('../models/User');
@@ -72,7 +75,10 @@ exports.deleteAdmin = async (req, res) => {
   try {
     const admin = await Admin.findByIdAndDelete(req.params.id);
     if (!admin) return res.status(404).json({ message: 'Admin not found' });
-    res.json({ message: 'Admin deleted' });
+    // Supprimer le User associé
+    const User = require('../models/User');
+    await User.deleteOne({ email: admin.email });
+    res.json({ message: 'Admin and user deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

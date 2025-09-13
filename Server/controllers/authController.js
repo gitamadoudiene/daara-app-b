@@ -20,9 +20,27 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+  if (!user) return res.status(400).json({ message: 'Échec de la connexion. Veuillez vérifier vos identifiants.' });
+    // Vérifier le statut si admin
+    if (user.role === 'admin') {
+      const Admin = require('../models/Admin');
+      const admin = await Admin.findOne({ email: user.email });
+      if (admin) {
+        if (admin.status === 'Suspendu') {
+          return res.status(403).json({ message: 'Votre compte administrateur est suspendu. Connexion refusée.' });
+        }
+        if (admin.status === 'Inactif') {
+          return res.status(403).json({ message: 'Votre compte administrateur est inactif. Connexion refusée.' });
+        }
+      }
+    }
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+  if (!isMatch) return res.status(400).json({ message: 'Échec de la connexion. Veuillez vérifier vos identifiants.' });
+    // Mettre à jour la dernière connexion si admin
+    if (user.role === 'admin') {
+      const Admin = require('../models/Admin');
+      await Admin.findOneAndUpdate({ email: user.email }, { lastLogin: new Date() });
+    }
     const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
     res.json({ token, user });
   } catch (err) {

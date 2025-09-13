@@ -25,9 +25,9 @@ export function LoginForm() {
     try {
       await login(email, password);
       toast.success('Connexion réussie !');
-    } catch (error) {
-      setError('Email ou mot de passe invalide');
-      toast.error('Échec de la connexion. Veuillez vérifier vos identifiants.');
+    } catch (error: any) {
+      setError(error.message || 'Échec de la connexion.');
+      toast.error(error.message || 'Échec de la connexion.');
     } finally {
       setIsLoading(false);
     }

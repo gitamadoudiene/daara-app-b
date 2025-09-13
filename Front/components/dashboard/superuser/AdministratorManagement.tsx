@@ -64,74 +64,17 @@ export function AdministratorManagement() {
       .catch(() => setSchools([]));
   }, []);
 
-  // Mock data for administrators
-  const administrators: Administrator[] = [
-    {
-      id: 'admin1',
-      name: 'Dr. Aminata Diop',
-      email: 'aminata.diop@daaraexcellence.sn',
-      phone: '+221-77-123-4567',
-      school: 'Lycée Daara Excellence',
-      schoolId: 'school1',
-      role: 'Principal',
-      status: 'Actif',
-      createdAt: '2024-01-01',
-      lastLogin: '2024-07-20',
-      permissions: ['Gestion complète', 'Rapports', 'Utilisateurs', 'Paramètres']
-    },
-    {
-      id: 'admin2',
-      name: 'Prof. Mamadou Sall',
-      email: 'mamadou.sall@alazhar.sn',
-      phone: '+221-77-456-7890',
-      school: 'École Privée Al-Azhar',
-      schoolId: 'school2',
-      role: 'Principal',
-      status: 'Actif',
-      createdAt: '2024-01-15',
-      lastLogin: '2024-07-22',
-      permissions: ['Gestion complète', 'Rapports', 'Utilisateurs']
-    },
-    {
-      id: 'admin3',
-      name: 'Mme. Fatou Ndiaye',
-      email: 'fatou.ndiaye@futureleaders.sn',
-      phone: '+221-77-789-0123',
-      school: 'Institut Futur Leaders',
-      schoolId: 'school3',
-      role: 'Principal',
-      status: 'Actif',
-      createdAt: '2024-02-01',
-      lastLogin: '2024-07-21',
-      permissions: ['Gestion complète', 'Rapports', 'Utilisateurs', 'Paramètres']
-    },
-    {
-      id: 'admin4',
-      name: 'M. Ousmane Ba',
-      email: 'ousmane.ba@daaraexcellence.sn',
-      phone: '+221-77-234-5678',
-      school: 'Lycée Daara Excellence',
-      schoolId: 'school1',
-      role: 'Adjoint',
-      status: 'Actif',
-      createdAt: '2024-03-01',
-      lastLogin: '2024-07-19',
-      permissions: ['Rapports', 'Utilisateurs']
-    },
-    {
-      id: 'admin5',
-      name: 'Mme. Aïssatou Diagne',
-      email: 'aissatou.diagne@futureleaders.sn',
-      phone: '+221-77-345-6789',
-      school: 'Institut Futur Leaders',
-      schoolId: 'school3',
-      role: 'Superviseur',
-      status: 'Inactif',
-      createdAt: '2024-04-01',
-      lastLogin: '2024-06-15',
-      permissions: ['Rapports']
-    }
-  ];
+    const [administrators, setAdministrators] = useState<Administrator[]>([]);
+    // Récupère les administrateurs depuis l'API au montage
+    useEffect(() => {
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      fetch(`${backendUrl}/api/admin`)
+        .then(res => res.json())
+        .then(data => {
+          setAdministrators(data);
+        })
+        .catch(() => setAdministrators([]));
+    }, []);
 
   const handleCreateAdmin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -142,10 +85,7 @@ export function AdministratorManagement() {
     const phone = formData.get('admin-phone')?.toString().trim();
     const role = formData.get('admin-role')?.toString();
     const school = formData.get('school')?.toString();
-    const permissions = ['Gestion complète', 'Rapports', 'Utilisateurs', 'Paramètres'].filter((perm, idx) => {
-      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-      return checkboxes[idx]?.checked;
-    });
+  const permissions = Array.from(formData.getAll('permissions'));
 
     // Validation des champs
     if (!name) {
@@ -236,12 +176,16 @@ export function AdministratorManagement() {
 
   // Filter administrators based on search and filters
   const filteredAdministrators = administrators.filter(admin => {
-    const matchesSearch = admin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         admin.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         admin.school.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSchool = filterSchool === '' || admin.schoolId === filterSchool;
-    const matchesStatus = filterStatus === '' || admin.status === filterStatus;
-    
+    const schoolName = typeof admin.school === 'object' && admin.school !== null ? admin.school.name : admin.school;
+    const schoolId = typeof admin.school === 'object' && admin.school !== null ? admin.school._id : admin.schoolId || admin.school;
+    const status = admin.status || (admin.lastLogin ? 'Actif' : 'Inactif');
+    const matchesSearch = (
+      (admin.name && admin.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (admin.email && admin.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (schoolName && schoolName.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    const matchesSchool = filterSchool === '' || schoolId === filterSchool;
+    const matchesStatus = filterStatus === '' || status === filterStatus;
     return matchesSearch && matchesSchool && matchesStatus;
   });
 
@@ -317,7 +261,7 @@ export function AdministratorManagement() {
                 <div className="grid grid-cols-2 gap-2">
                   {['Gestion complète', 'Rapports', 'Utilisateurs', 'Paramètres'].map((permission) => (
                     <label key={permission} className="flex items-center space-x-2">
-                      <input type="checkbox" className="rounded" />
+                      <input type="checkbox" name="permissions" value={permission} className="rounded" />
                       <span className="text-sm">{permission}</span>
                     </label>
                   ))}
@@ -479,7 +423,7 @@ export function AdministratorManagement() {
                         {admin.role}
                       </Badge>
                       <Badge variant="outline" className={getStatusColor(admin.status)}>
-                        {admin.status}
+                        {admin.status || (admin.lastLogin ? 'Actif' : 'Inactif')}
                       </Badge>
                     </div>
                     
@@ -495,7 +439,7 @@ export function AdministratorManagement() {
                         </div>
                         <div className="flex items-center space-x-2">
                           <Building2 className="h-4 w-4" />
-                          <span>{admin.school}</span>
+                          <span>{typeof admin.school === 'object' && admin.school !== null ? admin.school.name : admin.school}</span>
                         </div>
                       </div>
                       
@@ -506,11 +450,11 @@ export function AdministratorManagement() {
                         </div>
                         <div className="flex items-center space-x-2">
                           <Calendar className="h-4 w-4" />
-                          <span>Dernière connexion: {new Date(admin.lastLogin).toLocaleDateString('fr-FR')}</span>
+                          <span>Dernière connexion: {admin.lastLogin ? new Date(admin.lastLogin).toLocaleDateString('fr-FR') : '-'}</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <Shield className="h-4 w-4" />
-                          <span>{admin.permissions.length} permission(s)</span>
+                          <span>{Array.isArray(admin.permissions) ? admin.permissions.length : 0} permission(s)</span>
                         </div>
                       </div>
                     </div>
@@ -577,12 +521,12 @@ export function AdministratorManagement() {
                   </div>
                   <div>
                     <Label>École Assignée</Label>
-                    <p className="font-medium">{selectedAdmin.school}</p>
+                    <p className="font-medium">{typeof selectedAdmin.school === 'object' && selectedAdmin.school !== null ? selectedAdmin.school.name : selectedAdmin.school}</p>
                   </div>
                   <div>
                     <Label>Statut</Label>
                     <Badge variant="outline" className={getStatusColor(selectedAdmin.status)}>
-                      {selectedAdmin.status}
+                      {selectedAdmin.status || (selectedAdmin.lastLogin ? 'Actif' : 'Inactif')}
                     </Badge>
                   </div>
                 </div>
@@ -591,12 +535,16 @@ export function AdministratorManagement() {
                 <div>
                   <Label>Permissions Accordées</Label>
                   <div className="grid grid-cols-2 gap-2 mt-2">
-                    {selectedAdmin.permissions.map((permission) => (
-                      <div key={permission} className="flex items-center space-x-2 p-2 bg-green-50 rounded">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-sm">{permission}</span>
-                      </div>
-                    ))}
+                    {Array.isArray(selectedAdmin.permissions) && selectedAdmin.permissions.length > 0 ? (
+                      selectedAdmin.permissions.map((permission) => (
+                        <div key={permission} className="flex items-center space-x-2 p-2 bg-green-50 rounded">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-sm">{permission}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Aucune permission accordée</span>
+                    )}
                   </div>
                 </div>
               </TabsContent>
@@ -608,7 +556,7 @@ export function AdministratorManagement() {
                   </div>
                   <div>
                     <Label>Dernière Connexion</Label>
-                    <p className="font-medium">{new Date(selectedAdmin.lastLogin).toLocaleDateString('fr-FR')}</p>
+                    <p className="font-medium">{selectedAdmin.lastLogin ? new Date(selectedAdmin.lastLogin).toLocaleDateString('fr-FR') : '-'}</p>
                   </div>
                 </div>
                 <div>
@@ -616,7 +564,7 @@ export function AdministratorManagement() {
                   <div className="space-y-2 mt-2">
                     <div className="flex items-center space-x-2 p-2 border rounded">
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span className="text-sm">Connexion au système - {new Date(selectedAdmin.lastLogin).toLocaleDateString('fr-FR')}</span>
+                      <span className="text-sm">Connexion au système - {selectedAdmin.lastLogin ? new Date(selectedAdmin.lastLogin).toLocaleDateString('fr-FR') : '-'}</span>
                     </div>
                     <div className="flex items-center space-x-2 p-2 border rounded">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -640,25 +588,54 @@ export function AdministratorManagement() {
             </DialogDescription>
           </DialogHeader>
           {selectedAdmin && (
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={async (e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const payload = {
+                name: formData.get('edit-name'),
+                email: formData.get('edit-email'),
+                phone: formData.get('edit-phone'),
+                role: formData.get('edit-role'),
+                school: formData.get('edit-school'),
+                status: formData.get('edit-status'),
+                permissions: Array.from(formData.getAll('edit-permissions')),
+              };
+              const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+              const res = await fetch(`${backendUrl}/api/admin/${selectedAdmin.id || selectedAdmin._id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              if (res.ok) {
+                const updatedAdmin = await res.json();
+                toast.success('Administrateur modifié avec succès');
+                setIsEditAdminOpen(false);
+                // Mise à jour locale de la liste
+                setAdministrators((prev) => prev.map((admin) =>
+                  (admin._id === updatedAdmin._id || admin.id === updatedAdmin._id) ? { ...admin, ...updatedAdmin } : admin
+                ));
+              } else {
+                toast.error('Erreur lors de la modification');
+              }
+            }}>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-name">Nom Complet</Label>
-                  <Input id="edit-name" defaultValue={selectedAdmin.name} />
+                  <Input id="edit-name" name="edit-name" defaultValue={selectedAdmin.name} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-email">Email</Label>
-                  <Input id="edit-email" type="email" defaultValue={selectedAdmin.email} />
+                  <Input id="edit-email" name="edit-email" type="email" defaultValue={selectedAdmin.email} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-phone">Téléphone</Label>
-                  <Input id="edit-phone" defaultValue={selectedAdmin.phone} />
+                  <Input id="edit-phone" name="edit-phone" defaultValue={selectedAdmin.phone} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-role">Rôle</Label>
-                  <select id="edit-role" className="w-full p-2 border rounded-md" defaultValue={selectedAdmin.role}>
+                  <select id="edit-role" name="edit-role" className="w-full p-2 border rounded-md" defaultValue={selectedAdmin.role}>
                     <option value="Principal">Principal</option>
                     <option value="Adjoint">Adjoint</option>
                     <option value="Superviseur">Superviseur</option>
@@ -668,7 +645,7 @@ export function AdministratorManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-school">École</Label>
-                  <select id="edit-school" className="w-full p-2 border rounded-md" defaultValue={selectedAdmin.schoolId}>
+                  <select id="edit-school" name="edit-school" className="w-full p-2 border rounded-md" defaultValue={typeof selectedAdmin.school === 'object' && selectedAdmin.school !== null ? selectedAdmin.school._id : selectedAdmin.schoolId || selectedAdmin.school}>
                     {schools.map((school) => (
                       <option key={school.id} value={school.id}>
                         {school.name}
@@ -678,7 +655,7 @@ export function AdministratorManagement() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-status">Statut</Label>
-                  <select id="edit-status" className="w-full p-2 border rounded-md" defaultValue={selectedAdmin.status}>
+                  <select id="edit-status" name="edit-status" className="w-full p-2 border rounded-md" defaultValue={selectedAdmin.status}>
                     <option value="Actif">Actif</option>
                     <option value="Inactif">Inactif</option>
                     <option value="Suspendu">Suspendu</option>
@@ -692,6 +669,8 @@ export function AdministratorManagement() {
                     <label key={permission} className="flex items-center space-x-2">
                       <input 
                         type="checkbox" 
+                        name="edit-permissions"
+                        value={permission}
                         className="rounded" 
                         defaultChecked={selectedAdmin.permissions.includes(permission)}
                       />
@@ -707,9 +686,20 @@ export function AdministratorManagement() {
                 <Button 
                   type="button" 
                   variant="destructive"
-                  onClick={() => {
-                    toast.success('Administrateur supprimé avec succès');
-                    setIsEditAdminOpen(false);
+                  onClick={async () => {
+                    if (window.confirm('Êtes-vous sûr de vouloir supprimer cet administrateur ?')) {
+                      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+                      const res = await fetch(`${backendUrl}/api/admin/${selectedAdmin.id || selectedAdmin._id}`, {
+                        method: 'DELETE'
+                      });
+                      if (res.ok) {
+                        toast.success('Administrateur supprimé avec succès');
+                        setIsEditAdminOpen(false);
+                        setAdministrators((prev) => prev.filter((admin) => admin._id !== (selectedAdmin.id || selectedAdmin._id)));
+                      } else {
+                        toast.error('Erreur lors de la suppression');
+                      }
+                    }
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -717,11 +707,6 @@ export function AdministratorManagement() {
                 </Button>
                 <Button 
                   type="submit"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    toast.success('Administrateur mis à jour avec succès');
-                    setIsEditAdminOpen(false);
-                  }}
                 >
                   <Edit className="mr-2 h-4 w-4" />
                   Sauvegarder
