@@ -129,10 +129,39 @@ export function AdministratorManagement() {
     }
   ];
 
-  const handleCreateAdmin = (e: React.FormEvent) => {
+  const handleCreateAdmin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    toast.success('Administrateur créé avec succès !');
-    setIsCreateAdminOpen(false);
+    const formData = new FormData(e.currentTarget);
+    const payload = {
+      name: formData.get('admin-name'),
+      email: formData.get('admin-email'),
+      password: formData.get('password') || 'password123',
+      phone: formData.get('admin-phone'),
+      role: formData.get('admin-role'),
+      school: formData.get('admin-school'),
+      permissions: [
+        ...(['Gestion complète', 'Rapports', 'Utilisateurs', 'Paramètres'].filter((perm, idx) => {
+          const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+          return checkboxes[idx]?.checked;
+        }))
+      ]
+    };
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        toast.success(`Administrateur créé avec succès ! Mot de passe : ${payload.password}`);
+        setIsCreateAdminOpen(false);
+      } else {
+        const error = await res.json();
+        toast.error(`Erreur: ${error.message || 'Impossible de créer l\'administrateur.'}`);
+      }
+    } catch (err) {
+      toast.error('Erreur réseau ou serveur.');
+    }
   };
 
   const handleViewDetails = (admin: Administrator) => {
@@ -209,6 +238,10 @@ export function AdministratorManagement() {
                   <Input id="admin-email" type="email" placeholder="email@ecole.sn" required />
                 </div>
               </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-password">Mot de passe</Label>
+                  <Input id="admin-password" name="password" type="text" placeholder="password123" defaultValue="password123" required />
+                </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="admin-phone">Téléphone</Label>
