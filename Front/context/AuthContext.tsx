@@ -61,6 +61,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         setUser(data.user);
         localStorage.setItem('daara_user', JSON.stringify(data.user));
+        // Stocker également le token JWT
+        localStorage.setItem('daara_token', data.token);
+        console.log('Token stocké:', data.token);
       } else {
         throw new Error(data.message || 'Login failed');
       }
@@ -72,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('daara_user');
+    localStorage.removeItem('daara_token');
   };
 
   return (

@@ -5,11 +5,16 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   role: { type: String, enum: ['super_user', 'admin', 'teacher', 'parent', 'student'], required: true },
   avatar: { type: String },
+  phone: { type: String },
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
   class: { type: String },
+  classes: [{ type: String }], // Pour les enseignants qui enseignent plusieurs classes
   subjects: [{ type: String }],
   children: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  password: { type: String, required: true }
+  password: { type: String, required: true },
+  qualification: { type: String }, // Pour les qualifications des enseignants
+  experience: { type: String }, // Pour l'expérience professionnelle des enseignants
+  lastLogin: { type: Date }
 });
 
 module.exports = mongoose.model('User', userSchema);

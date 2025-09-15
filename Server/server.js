@@ -13,12 +13,16 @@ const userRoutes = require('./routes/user');
 const dashboardRoutes = require('./routes/dashboard');
 const schoolRoutes = require('./routes/school');
 const adminRoutes = require('./routes/admin');
+const teacherRoutes = require('./routes/teacher');
+const classRoutes = require('./routes/class');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/school', schoolRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/teachers', teacherRoutes);
+app.use('/api/classes', classRoutes);
 
 const PORT = process.env.PORT || 5000;
 
