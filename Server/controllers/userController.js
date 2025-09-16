@@ -81,9 +81,12 @@ exports.getAllParents = async (req, res) => {
 
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find();
+    const users = await User.find()
+      .populate('schoolId', 'name')
+      .select('-password');
     res.json(users);
   } catch (err) {
+    console.error('Erreur lors de la récupération des utilisateurs:', err);
     res.status(500).json({ message: err.message });
   }
 };

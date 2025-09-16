@@ -48,6 +48,17 @@ interface User {
   children?: number;
 }
 
+interface School {
+  _id: string;
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  director: string;
+  type: string;
+  status: string;
+}
+
 export function UserOverview() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('');
@@ -67,9 +78,10 @@ export function UserOverview() {
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   
   // États pour les données de l'API
-  const [schools, setSchools] = useState<{ id: string, name: string }[]>([]);
+  const [schools, setSchools] = useState<School[]>([]);
   const [classes, setClasses] = useState<string[]>([]);
   const [parents, setParents] = useState<{ id: string, name: string }[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [filteredParents, setFilteredParents] = useState<{ id: string, name: string }[]>([]);
   const [parentSearchTerm, setParentSearchTerm] = useState('');
   const [showParentDropdown, setShowParentDropdown] = useState(false);
@@ -150,10 +162,8 @@ export function UserOverview() {
         }
         
         const data = await response.json();
-        setSchools(data.map((school: any) => ({
-          id: school._id,
-          name: school.name
-        })));
+        setSchools(data);
+        console.log(`📚 Écoles récupérées:`, data);
       } catch (error) {
         console.error('Erreur lors du chargement des écoles:', error);
         setError('Impossible de charger la liste des écoles');
@@ -281,6 +291,46 @@ export function UserOverview() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Fonction pour rafraîchir la liste des utilisateurs
+  const refreshUsers = async () => {
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) return;
+
+      const response = await fetch('http://localhost:5000/api/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const mappedUsers = data.map((user: any) => ({
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || '',
+          role: mapRole(user.role),
+          school: user.schoolId?.name || 'Non assigné',
+          schoolId: user.schoolId?._id || '',
+          status: user.status || 'Actif',
+          createdAt: new Date(user.createdAt || Date.now()).toISOString().split('T')[0],
+          lastLogin: user.lastLogin ? new Date(user.lastLogin).toISOString().split('T')[0] : 'Jamais',
+          subject: user.subjects?.join(', ') || '',
+          class: user.class || '',
+          children: Array.isArray(user.children) ? user.children.length : 0,
+          gender: user.gender || ''
+        }));
+        
+        setUsers(mappedUsers);
+        console.log(`✅ Liste des utilisateurs mise à jour: ${mappedUsers.length} utilisateur(s)`);
+      }
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement des utilisateurs:', error);
+    }
+  };
 
   // Fonction pour récupérer les classes de l'école sélectionnée
   useEffect(() => {
@@ -569,86 +619,70 @@ export function UserOverview() {
 
   // Les données des écoles viennent maintenant de l'API et sont stockées dans l'état schools
 
-  // Mock data for users
-  const users: User[] = [
-    {
-      id: 'user1',
-      name: 'Aminata Diop',
-      email: 'aminata.diop@daaraexcellence.sn',
-      phone: '+221-77-123-4567',
-      role: 'Administrateur',
-      school: 'Lycée Daara Excellence',
-      schoolId: 'school1',
-      status: 'Actif',
-      createdAt: '2024-01-01',
-      lastLogin: '2024-07-22'
-    },
-    {
-      id: 'user2',
-      name: 'Mamadou Sall',
-      email: 'mamadou.sall@alazhar.sn',
-      phone: '+221-77-456-7890',
-      role: 'Enseignant',
-      school: 'École Privée Al-Azhar',
-      schoolId: 'school2',
-      status: 'Actif',
-      createdAt: '2024-01-15',
-      lastLogin: '2024-07-21',
-      subject: 'Mathématiques'
-    },
-    {
-      id: 'user3',
-      name: 'Fatou Ndiaye',
-      email: 'fatou.ndiaye@futureleaders.sn',
-      phone: '+221-77-789-0123',
-      role: 'Étudiant',
-      school: 'Institut Futur Leaders',
-      schoolId: 'school3',
-      status: 'Actif',
-      createdAt: '2024-02-01',
-      lastLogin: '2024-07-22',
-      class: 'Terminale S'
-    },
-    {
-      id: 'user4',
-      name: 'Ousmane Ba',
-      email: 'ousmane.ba@gmail.com',
-      phone: '+221-77-234-5678',
-      role: 'Parent',
-      school: 'Lycée Daara Excellence',
-      schoolId: 'school1',
-      status: 'Actif',
-      createdAt: '2024-03-01',
-      lastLogin: '2024-07-20',
-      children: 2
-    },
-    {
-      id: 'user5',
-      name: 'Aïssatou Diagne',
-      email: 'aissatou.diagne@futureleaders.sn',
-      phone: '+221-77-345-6789',
-      role: 'Enseignant',
-      school: 'Institut Futur Leaders',
-      schoolId: 'school3',
-      status: 'Inactif',
-      createdAt: '2024-04-01',
-      lastLogin: '2024-06-15',
-      subject: 'Histoire-Géographie'
-    },
-    {
-      id: 'user6',
-      name: 'Ibrahima Sarr',
-      email: 'ibrahima.sarr@daaraexcellence.sn',
-      phone: '+221-77-456-7891',
-      role: 'Étudiant',
-      school: 'Lycée Daara Excellence',
-      schoolId: 'school1',
-      status: 'Suspendu',
-      createdAt: '2024-05-01',
-      lastLogin: '2024-07-10',
-      class: 'Première L'
+  // Fonction pour récupérer tous les utilisateurs de la BD
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const token = localStorage.getItem('daara_token');
+        if (!token) {
+          console.warn('Aucun token trouvé pour récupérer les utilisateurs');
+          return;
+        }
+
+        const response = await fetch('http://localhost:5000/api/users', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Erreur lors de la récupération des utilisateurs');
+        }
+        
+        const data = await response.json();
+        
+        // Mapper les données du backend vers le format du frontend
+        const mappedUsers = data.map((user: any) => ({
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || '',
+          role: mapRole(user.role),
+          school: user.schoolId?.name || 'Non assigné',
+          schoolId: user.schoolId?._id || '',
+          status: user.status || 'Actif',
+          createdAt: new Date(user.createdAt || Date.now()).toISOString().split('T')[0],
+          lastLogin: user.lastLogin ? new Date(user.lastLogin).toISOString().split('T')[0] : 'Jamais',
+          subject: user.subjects?.join(', ') || '',
+          class: user.class || '',
+          children: Array.isArray(user.children) ? user.children.length : 0,
+          gender: user.gender || ''
+        }));
+        
+        setUsers(mappedUsers);
+        console.log(`✅ ${mappedUsers.length} utilisateur(s) récupéré(s) depuis la BD`);
+      } catch (error) {
+        console.error('Erreur lors du chargement des utilisateurs:', error);
+        setError('Impossible de charger la liste des utilisateurs');
+        setUsers([]);
+      }
+    };
+    
+    fetchUsers();
+  }, []);
+
+  // Fonction pour mapper les rôles du backend vers le frontend
+  const mapRole = (role: string) => {
+    switch (role) {
+      case 'student': return 'Étudiant';
+      case 'teacher': return 'Enseignant';
+      case 'parent': return 'Parent';
+      case 'admin': return 'Administrateur';
+      case 'super_user': return 'Super Utilisateur';
+      default: return role;
     }
-  ];
+  };
 
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -690,6 +724,13 @@ export function UserOverview() {
     
     return matchesSearch && matchesRole && matchesSchool && matchesStatus;
   });
+
+  // Debug logs
+  console.log(`🔍 Filtrage - Utilisateurs total: ${users.length}, Filtrés: ${filteredUsers.length}`);
+  console.log(`🏫 FilterSchool actuel: "${filterSchool}"`);
+  if (users.length > 0) {
+    console.log(`📋 Premier utilisateur - École: "${users[0].school}", SchoolId: "${users[0].schoolId}"`);
+  }
   
   // Fonctions pour gérer les soumissions de formulaires
   const handleCreateUser = (e: React.FormEvent) => {
@@ -738,6 +779,9 @@ export function UserOverview() {
         
         // Rafraîchir la liste des parents pour le formulaire étudiant
         await refreshParents();
+        
+        // Rafraîchir la liste des utilisateurs pour l'affichage
+        await refreshUsers();
         
         // Réinitialiser le formulaire
         setParentForm({
@@ -809,6 +853,9 @@ export function UserOverview() {
       
       if (response.ok) {
         setSuccessMessage(`Étudiant créé avec succès! Mot de passe temporaire: ${data.tempPassword}`);
+        
+        // Rafraîchir la liste des utilisateurs pour l'affichage
+        await refreshUsers();
         
         // Réinitialiser le formulaire
         setStudentForm({
@@ -1111,7 +1158,7 @@ export function UserOverview() {
                   >
                     <option value="">Toutes les écoles</option>
                     {schools.map((school) => (
-                      <option key={school.id} value={school.id}>
+                      <option key={school._id} value={school._id}>
                         {school.name}
                       </option>
                     ))}
@@ -1469,7 +1516,7 @@ export function UserOverview() {
                   </SelectTrigger>
                   <SelectContent>
                     {schools.map(school => (
-                      <SelectItem key={school.id} value={school.id}>{school.name}</SelectItem>
+                      <SelectItem key={school._id} value={school._id}>{school.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1690,7 +1737,7 @@ export function UserOverview() {
                   </SelectTrigger>
                   <SelectContent>
                     {schools.map((school) => (
-                      <SelectItem key={school.id} value={school.id}>
+                      <SelectItem key={school._id} value={school._id}>
                         {school.name}
                       </SelectItem>
                     ))}
@@ -1813,7 +1860,7 @@ export function UserOverview() {
                 >
                   <option value="">Sélectionner une école</option>
                   {schools.map(school => (
-                    <option key={school.id} value={school.id}>
+                    <option key={school._id} value={school._id}>
                       {school.name}
                     </option>
                   ))}
