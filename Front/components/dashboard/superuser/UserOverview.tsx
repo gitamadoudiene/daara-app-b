@@ -163,7 +163,6 @@ export function UserOverview() {
         
         const data = await response.json();
         setSchools(data);
-        console.log(`📚 Écoles récupérées:`, data);
       } catch (error) {
         console.error('Erreur lors du chargement des écoles:', error);
         setError('Impossible de charger la liste des écoles');
@@ -313,7 +312,7 @@ export function UserOverview() {
           email: user.email,
           phone: user.phone || '',
           role: mapRole(user.role),
-          school: user.schoolId?.name || 'Non assigné',
+          school: user.role === 'super_user' ? 'ACCÈS GLOBAL' : (user.schoolId?.name || 'Non assigné'),
           schoolId: user.schoolId?._id || '',
           status: user.status || 'Actif',
           createdAt: new Date(user.createdAt || Date.now()).toISOString().split('T')[0],
@@ -690,6 +689,7 @@ export function UserOverview() {
       case 'Enseignant': return BookOpen;
       case 'Parent': return UserCheck;
       case 'Administrateur': return Shield;
+      case 'Super Utilisateur': return Shield;
       default: return Users;
     }
   };
@@ -700,6 +700,7 @@ export function UserOverview() {
       case 'Enseignant': return 'bg-green-100 text-green-800';
       case 'Parent': return 'bg-orange-100 text-orange-800';
       case 'Administrateur': return 'bg-purple-100 text-purple-800';
+      case 'Super Utilisateur': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -724,13 +725,6 @@ export function UserOverview() {
     
     return matchesSearch && matchesRole && matchesSchool && matchesStatus;
   });
-
-  // Debug logs
-  console.log(`🔍 Filtrage - Utilisateurs total: ${users.length}, Filtrés: ${filteredUsers.length}`);
-  console.log(`🏫 FilterSchool actuel: "${filterSchool}"`);
-  if (users.length > 0) {
-    console.log(`📋 Premier utilisateur - École: "${users[0].school}", SchoolId: "${users[0].schoolId}"`);
-  }
   
   // Fonctions pour gérer les soumissions de formulaires
   const handleCreateUser = (e: React.FormEvent) => {
@@ -1104,12 +1098,13 @@ export function UserOverview() {
       </div>
 
       <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="all">Tous</TabsTrigger>
           <TabsTrigger value="students">Étudiants</TabsTrigger>
           <TabsTrigger value="teachers">Enseignants</TabsTrigger>
           <TabsTrigger value="parents">Parents</TabsTrigger>
           <TabsTrigger value="admins">Administrateurs</TabsTrigger>
+          <TabsTrigger value="superusers">Super Users</TabsTrigger>
         </TabsList>
 
         <TabsContent value="all" className="space-y-6">
@@ -1253,7 +1248,7 @@ export function UserOverview() {
                                   <span>Matière: {user.subject}</span>
                                 </div>
                               )}
-                              {user.children && (
+                              {user.role === 'Parent' && (
                                 <div className="flex items-center space-x-2">
                                   <UserCheck className="h-4 w-4" />
                                   <span>{user.children} enfant(s)</span>
@@ -1421,6 +1416,41 @@ export function UserOverview() {
                         </div>
                       </div>
                       <Badge variant="outline" className={getStatusColor(user.status)}>
+                        {user.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="superusers" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Shield className="h-6 w-6 text-red-600" />
+                <span>Super Utilisateurs</span>
+              </CardTitle>
+              <CardDescription>
+                {users.filter(u => u.role === 'Super Utilisateur').length} super utilisateur(s) avec accès global
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {users.filter(u => u.role === 'Super Utilisateur').map((user) => (
+                  <div key={user.id} className="border rounded-lg p-4 bg-gradient-to-r from-red-50 to-purple-50 border-red-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <Shield className="h-5 w-5 text-red-600" />
+                        <div>
+                          <h3 className="font-semibold text-red-800">{user.name}</h3>
+                          <p className="text-sm text-red-600 font-medium">🌟 {user.school} 🌟</p>
+                          <p className="text-xs text-gray-600">Accès à toutes les écoles, tous les utilisateurs, toutes les données</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300">
                         {user.status}
                       </Badge>
                     </div>
