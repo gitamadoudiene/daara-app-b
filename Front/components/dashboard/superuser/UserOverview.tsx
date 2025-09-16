@@ -30,6 +30,7 @@ import {
   Download,
   UserPlus
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface User {
   id: string;
@@ -68,6 +69,10 @@ export function UserOverview() {
   // États pour les données de l'API
   const [schools, setSchools] = useState<{ id: string, name: string }[]>([]);
   const [classes, setClasses] = useState<string[]>([]);
+  const [parents, setParents] = useState<{ id: string, name: string }[]>([]);
+  const [filteredParents, setFilteredParents] = useState<{ id: string, name: string }[]>([]);
+  const [parentSearchTerm, setParentSearchTerm] = useState('');
+  const [showParentDropdown, setShowParentDropdown] = useState(false);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   
   // États pour le formulaire d'enseignant
@@ -78,6 +83,34 @@ export function UserOverview() {
     schoolId: '',
     qualification: '',
     experience: ''
+  });
+  
+  // États pour le formulaire de parent
+  const [parentForm, setParentForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    schoolId: '',
+    gender: '',
+    status: 'Actif',
+    profession: '',
+    emergencyPhone: '',
+    relation: ''
+  });
+  
+  // États pour le formulaire d'étudiant
+  const [studentForm, setStudentForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    schoolId: '',
+    classId: '',
+    parentId: undefined as string | undefined,
+    dateOfBirth: '',
+    gender: '',
+    status: 'Actif'
   });
   
   // États pour le chargement et les erreurs
@@ -130,15 +163,135 @@ export function UserOverview() {
     fetchSchools();
   }, []);
 
+  // Fonction pour récupérer les parents depuis l'API
+  useEffect(() => {
+    const fetchParents = async () => {
+      try {
+        const token = localStorage.getItem('daara_token');
+        if (!token) {
+          console.warn('Aucun token trouvé pour récupérer les parents');
+          return;
+        }
+
+        const response = await fetch('http://localhost:5000/api/users/parents', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Erreur lors de la récupération des parents');
+        }
+        
+        const data = await response.json();
+        setParents(data.map((parent: any) => ({
+          id: parent._id,
+          name: parent.name
+        })));
+        
+        // Initialiser la liste filtrée
+        setFilteredParents(data.map((parent: any) => ({
+          id: parent._id,
+          name: parent.name
+        })));
+        
+        console.log(`✅ ${data.length} parent(s) récupéré(s) depuis la BD`);
+      } catch (error) {
+        console.error('Erreur lors du chargement des parents:', error);
+        setError('Impossible de charger la liste des parents');
+        setParents([]);
+      }
+    };
+    
+    fetchParents();
+  }, []);
+
+  // Fonction pour rafraîchir la liste des parents
+  const refreshParents = async () => {
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) return;
+
+      const response = await fetch('http://localhost:5000/api/users/parents', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const parentsData = data.map((parent: any) => ({
+          id: parent._id,
+          name: parent.name
+        }));
+        
+        setParents(parentsData);
+        setFilteredParents(parentsData);
+        console.log(`✅ Liste des parents mise à jour: ${data.length} parent(s)`);
+      }
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement des parents:', error);
+    }
+  };
+
+  // Fonction pour filtrer les parents selon la recherche
+  const handleParentSearch = (searchTerm: string) => {
+    setParentSearchTerm(searchTerm);
+    
+    if (searchTerm.trim() === '') {
+      setFilteredParents(parents);
+    } else {
+      const filtered = parents.filter(parent =>
+        parent.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredParents(filtered);
+    }
+    
+    setShowParentDropdown(true);
+  };
+
+  // Fonction pour sélectionner un parent
+  const handleParentSelect = (parent: { id: string, name: string }) => {
+    setStudentForm({...studentForm, parentId: parent.id});
+    setParentSearchTerm(parent.name);
+    setShowParentDropdown(false);
+  };
+
+  // Fonction pour effacer la sélection de parent
+  const clearParentSelection = () => {
+    setStudentForm({...studentForm, parentId: undefined});
+    setParentSearchTerm('');
+    setFilteredParents(parents);
+    setShowParentDropdown(false);
+  };
+
+  // Fermer le dropdown quand on clique ailleurs
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-parent-search]')) {
+        setShowParentDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // Fonction pour récupérer les classes de l'école sélectionnée
   useEffect(() => {
-    if (teacherForm.schoolId) {
+    if (studentForm.schoolId || teacherForm.schoolId) {
       const fetchClasses = async () => {
         try {
-          console.log(`Tentative de récupération des classes pour l'école ID: ${teacherForm.schoolId}`);
+          const schoolId = studentForm.schoolId || teacherForm.schoolId;
+          console.log(`Tentative de récupération des classes pour l'école ID: ${schoolId}`);
           
           // Nettoyer l'ID d'école (supprimer les espaces éventuels)
-          const cleanSchoolId = teacherForm.schoolId.trim();
+          const cleanSchoolId = schoolId.trim();
           
           // Vérifier si l'ID est au bon format pour MongoDB ObjectId
           if (!cleanSchoolId.match(/^[0-9a-fA-F]{24}$/)) {
@@ -326,7 +479,7 @@ export function UserOverview() {
       // Réinitialiser les classes si aucune école n'est sélectionnée
       setClasses([]);
     }
-  }, [teacherForm.schoolId]);
+  }, [teacherForm.schoolId, studentForm.schoolId]);
 
   // Fonction pour récupérer toutes les matières disponibles
   useEffect(() => {
@@ -546,18 +699,152 @@ export function UserOverview() {
     setIsCreateUserOpen(false);
   };
   
-  const handleCreateParent = (e: React.FormEvent) => {
+  const handleCreateParent = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Logique pour créer un parent
-    console.log('Création de parent');
-    setIsCreateParentOpen(false);
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    
+    try {
+      const token = localStorage.getItem('daara_token');
+      
+      if (!token) {
+        throw new Error('Vous devez être connecté pour effectuer cette action');
+      }
+      
+      const parentData = {
+        name: parentForm.name,
+        email: parentForm.email,
+        phone: parentForm.phone,
+        address: parentForm.address,
+        schoolId: parentForm.schoolId,
+        gender: parentForm.gender,
+        status: parentForm.status
+      };
+      
+      const response = await fetch('http://localhost:5000/api/users/parents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(parentData)
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setSuccessMessage(`Parent créé avec succès! Mot de passe temporaire: ${data.tempPassword}`);
+        
+        // Rafraîchir la liste des parents pour le formulaire étudiant
+        await refreshParents();
+        
+        // Réinitialiser le formulaire
+        setParentForm({
+          name: '',
+          email: '',
+          phone: '',
+          address: '',
+          schoolId: '',
+          gender: '',
+          status: 'Actif',
+          profession: '',
+          emergencyPhone: '',
+          relation: ''
+        });
+        
+        // Fermer le dialog après un délai
+        setTimeout(() => {
+          setIsCreateParentOpen(false);
+          setSuccessMessage(null);
+        }, 3000);
+        
+      } else {
+        throw new Error(data.message || 'Erreur lors de la création du parent');
+      }
+      
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la création du parent');
+    } finally {
+      setLoading(false);
+    }
   };
   
-  const handleCreateStudent = (e: React.FormEvent) => {
+  const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Logique pour créer un étudiant
-    console.log('Création d\'étudiant');
-    setIsCreateStudentOpen(false);
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    
+    try {
+      const token = localStorage.getItem('daara_token');
+      
+      if (!token) {
+        throw new Error('Vous devez être connecté pour effectuer cette action');
+      }
+      
+      const studentData = {
+        name: studentForm.name,
+        email: studentForm.email,
+        phone: studentForm.phone,
+        address: studentForm.address,
+        schoolId: studentForm.schoolId,
+        classId: studentForm.classId,
+        parentId: studentForm.parentId || undefined,
+        dateOfBirth: studentForm.dateOfBirth,
+        gender: studentForm.gender,
+        status: studentForm.status
+      };
+      
+      const response = await fetch('http://localhost:5000/api/users/students', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(studentData)
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setSuccessMessage(`Étudiant créé avec succès! Mot de passe temporaire: ${data.tempPassword}`);
+        
+        // Réinitialiser le formulaire
+        setStudentForm({
+          name: '',
+          email: '',
+          phone: '',
+          address: '',
+          schoolId: '',
+          classId: '',
+          parentId: undefined,
+          dateOfBirth: '',
+          gender: '',
+          status: 'Actif'
+        });
+        
+        // Réinitialiser la recherche de parent
+        setParentSearchTerm('');
+        setFilteredParents(parents);
+        setShowParentDropdown(false);
+        
+        // Fermer le dialog après un délai
+        setTimeout(() => {
+          setIsCreateStudentOpen(false);
+          setSuccessMessage(null);
+        }, 3000);
+        
+      } else {
+        throw new Error(data.message || 'Erreur lors de la création de l\'étudiant');
+      }
+      
+    } catch (err: any) {
+      console.error('Erreur lors de la création de l\'étudiant:', err);
+      setError(err.message || 'Erreur lors de la création de l\'étudiant');
+    } finally {
+      setLoading(false);
+    }
   };
   
   const handleCreateTeacher = async (e: React.FormEvent) => {
@@ -1107,27 +1394,76 @@ export function UserOverview() {
               Créer un nouveau compte étudiant dans le système.
             </DialogDescription>
           </DialogHeader>
+          
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+          
+          {successMessage && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+              {successMessage}
+            </div>
+          )}
+          
           <form onSubmit={handleCreateStudent} className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="student-name">Nom Complet</Label>
-                <Input id="student-name" placeholder="Ex: Amadou Diallo" required />
+                <Label htmlFor="student-name">Nom Complet *</Label>
+                <Input 
+                  id="student-name" 
+                  placeholder="Ex: Amadou Diallo" 
+                  value={studentForm.name}
+                  onChange={(e) => setStudentForm({...studentForm, name: e.target.value})}
+                  required 
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="student-email">Email</Label>
-                <Input id="student-email" type="email" placeholder="exemple@daara.sn" />
+                <Input 
+                  id="student-email" 
+                  type="email" 
+                  placeholder="exemple@daara.sn" 
+                  value={studentForm.email}
+                  onChange={(e) => setStudentForm({...studentForm, email: e.target.value})}
+                />
+                <p className="text-xs text-muted-foreground">Optionnel - sera généré automatiquement si non fourni</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="student-phone">Téléphone</Label>
-                <Input id="student-phone" placeholder="+221 77 123 4567" />
+                <Label htmlFor="student-phone">Téléphone *</Label>
+                <Input 
+                  id="student-phone" 
+                  placeholder="+221 77 123 4567" 
+                  value={studentForm.phone}
+                  onChange={(e) => setStudentForm({...studentForm, phone: e.target.value})}
+                  required 
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="student-dob">Date de Naissance</Label>
-                <Input id="student-dob" type="date" required />
+                <Input 
+                  id="student-dob" 
+                  type="date" 
+                  value={studentForm.dateOfBirth}
+                  onChange={(e) => setStudentForm({...studentForm, dateOfBirth: e.target.value})}
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="student-school">École</Label>
-                <Select>
+                <Label htmlFor="student-gender">Sexe *</Label>
+                <Select value={studentForm.gender} onValueChange={(value) => setStudentForm({...studentForm, gender: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner le sexe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Masculin">Masculin</SelectItem>
+                    <SelectItem value="Féminin">Féminin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="student-school">École *</Label>
+                <Select value={studentForm.schoolId} onValueChange={(value) => setStudentForm({...studentForm, schoolId: value})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Sélectionner une école" />
                   </SelectTrigger>
@@ -1139,8 +1475,8 @@ export function UserOverview() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="student-class">Classe</Label>
-                <Select>
+                <Label htmlFor="student-class">Classe *</Label>
+                <Select value={studentForm.classId} onValueChange={(value) => setStudentForm({...studentForm, classId: value})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Sélectionner une classe" />
                   </SelectTrigger>
@@ -1151,33 +1487,100 @@ export function UserOverview() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 lg:col-span-2">
+              <div className="space-y-2">
                 <Label htmlFor="student-address">Adresse</Label>
-                <Input id="student-address" placeholder="Adresse complète" />
+                <Input 
+                  id="student-address" 
+                  placeholder="Adresse complète" 
+                  value={studentForm.address}
+                  onChange={(e) => setStudentForm({...studentForm, address: e.target.value})}
+                />
               </div>
-              <div className="space-y-2 lg:col-span-2">
+              <div className="space-y-2">
                 <Label htmlFor="student-parents">Parent(s)</Label>
-                <Select>
+                <div className="relative" data-parent-search>
+                  <div className="flex">
+                    <Input
+                      id="student-parents"
+                      type="text"
+                      placeholder="Rechercher un parent..."
+                      value={parentSearchTerm}
+                      onChange={(e) => handleParentSearch(e.target.value)}
+                      onFocus={() => setShowParentDropdown(true)}
+                      className="flex-1"
+                    />
+                    {studentForm.parentId && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={clearParentSelection}
+                        className="ml-2 px-2"
+                        title="Effacer la sélection"
+                      >
+                        ×
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {showParentDropdown && filteredParents.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 z-50 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
+                      {filteredParents.slice(0, 10).map((parent) => (
+                        <div
+                          key={parent.id}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                          onClick={() => handleParentSelect(parent)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">{parent.name}</span>
+                            {studentForm.parentId === parent.id && (
+                              <span className="text-xs text-green-600 font-medium">✓ Sélectionné</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {filteredParents.length > 10 && (
+                        <div className="px-3 py-2 text-xs text-gray-500 border-t bg-gray-50">
+                          ... et {filteredParents.length - 10} autre(s). Continuez à taper pour affiner.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {showParentDropdown && filteredParents.length === 0 && parentSearchTerm && (
+                    <div className="absolute top-full left-0 right-0 z-50 bg-white border border-gray-200 rounded-md shadow-lg mt-1">
+                      <div className="px-3 py-2 text-sm text-gray-500">
+                        Aucun parent trouvé pour &ldquo;{parentSearchTerm}&rdquo;
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {studentForm.parentId 
+                    ? `Parent sélectionné • ${parents.length} parent(s) disponible(s)` 
+                    : `Si le parent n'existe pas, ajoutez-le d'abord • ${parents.length} parent(s) disponible(s)`
+                  }
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="student-status">Statut</Label>
+                <Select value={studentForm.status} onValueChange={(value) => setStudentForm({...studentForm, status: value})}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Associer un parent" />
+                    <SelectValue placeholder="Statut" />
                   </SelectTrigger>
                   <SelectContent>
-                    {users
-                      .filter(user => user.role === 'Parent')
-                      .map(parent => (
-                        <SelectItem key={parent.id} value={parent.id}>{parent.name}</SelectItem>
-                      ))
-                    }
+                    <SelectItem value="Actif">Actif</SelectItem>
+                    <SelectItem value="Inactif">Inactif</SelectItem>
+                    <SelectItem value="Suspendu">Suspendu</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Si le parent n&apos;existe pas, ajoutez-le d&apos;abord
-                </p>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 pt-4">
-              <Button type="submit" className="flex-1">Créer Étudiant</Button>
-              <Button type="button" variant="outline" onClick={() => setIsCreateStudentOpen(false)} className="flex-1">
+              <Button type="submit" className="flex-1" disabled={loading}>
+                {loading ? 'Création...' : 'Créer Étudiant'}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setIsCreateStudentOpen(false)} className="flex-1" disabled={loading}>
                 Annuler
               </Button>
             </div>
@@ -1194,35 +1597,109 @@ export function UserOverview() {
               Créer un nouveau compte parent dans le système.
             </DialogDescription>
           </DialogHeader>
+          
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+          
+          {successMessage && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+              {successMessage}
+            </div>
+          )}
+          
           <form onSubmit={handleCreateParent} className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="parent-name">Nom Complet</Label>
-                <Input id="parent-name" placeholder="Ex: Fatou Sow" required />
+                <Label htmlFor="parent-name">Nom Complet *</Label>
+                <Input 
+                  id="parent-name" 
+                  placeholder="Ex: Fatou Sow" 
+                  value={parentForm.name}
+                  onChange={(e) => setParentForm({...parentForm, name: e.target.value})}
+                  required 
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="parent-email">Email</Label>
-                <Input id="parent-email" type="email" placeholder="exemple@daara.sn" required />
+                <Label htmlFor="parent-email">Email *</Label>
+                <Input 
+                  id="parent-email" 
+                  type="email" 
+                  placeholder="exemple@daara.sn" 
+                  value={parentForm.email}
+                  onChange={(e) => setParentForm({...parentForm, email: e.target.value})}
+                  required 
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="parent-phone">Téléphone</Label>
-                <Input id="parent-phone" placeholder="+221 77 123 4567" required />
+                <Label htmlFor="parent-phone">Téléphone *</Label>
+                <Input 
+                  id="parent-phone" 
+                  placeholder="+221 77 123 4567" 
+                  value={parentForm.phone}
+                  onChange={(e) => setParentForm({...parentForm, phone: e.target.value})}
+                  required 
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="parent-profession">Profession</Label>
-                <Input id="parent-profession" placeholder="Ex: Médecin" />
+                <Input 
+                  id="parent-profession" 
+                  placeholder="Ex: Médecin" 
+                  value={parentForm.profession}
+                  onChange={(e) => setParentForm({...parentForm, profession: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="parent-gender">Sexe *</Label>
+                <Select value={parentForm.gender} onValueChange={(value) => setParentForm({...parentForm, gender: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner le sexe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Masculin">Masculin</SelectItem>
+                    <SelectItem value="Féminin">Féminin</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2 lg:col-span-2">
                 <Label htmlFor="parent-address">Adresse</Label>
-                <Input id="parent-address" placeholder="Adresse complète" />
+                <Input 
+                  id="parent-address" 
+                  placeholder="Adresse complète"
+                  value={parentForm.address}
+                  onChange={(e) => setParentForm({...parentForm, address: e.target.value})}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="parent-emergency">Téléphone d&apos;Urgence</Label>
-                <Input id="parent-emergency" placeholder="+221 77 123 4567" />
+                <Input 
+                  id="parent-emergency" 
+                  placeholder="+221 77 123 4567"
+                  value={parentForm.emergencyPhone}
+                  onChange={(e) => setParentForm({...parentForm, emergencyPhone: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="parent-school">École</Label>
+                <Select value={parentForm.schoolId} onValueChange={(value) => setParentForm({...parentForm, schoolId: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une école" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {schools.map((school) => (
+                      <SelectItem key={school.id} value={school.id}>
+                        {school.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="parent-relation">Relation avec l&apos;élève</Label>
-                <Select>
+                <Select value={parentForm.relation} onValueChange={(value) => setParentForm({...parentForm, relation: value})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Type de relation" />
                   </SelectTrigger>
@@ -1234,6 +1711,19 @@ export function UserOverview() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="parent-status">Statut</Label>
+                <Select value={parentForm.status} onValueChange={(value) => setParentForm({...parentForm, status: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Actif">Actif</SelectItem>
+                    <SelectItem value="Inactif">Inactif</SelectItem>
+                    <SelectItem value="Suspendu">Suspendu</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2 lg:col-span-2">
                 <Label htmlFor="parent-children">Enfants</Label>
                 <div className="text-sm text-muted-foreground mb-2">
@@ -1242,8 +1732,10 @@ export function UserOverview() {
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 pt-4">
-              <Button type="submit" className="flex-1">Créer Parent</Button>
-              <Button type="button" variant="outline" onClick={() => setIsCreateParentOpen(false)} className="flex-1">
+              <Button type="submit" className="flex-1" disabled={loading}>
+                {loading ? 'Création...' : 'Créer Parent'}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setIsCreateParentOpen(false)} className="flex-1" disabled={loading}>
                 Annuler
               </Button>
             </div>

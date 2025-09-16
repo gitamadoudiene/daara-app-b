@@ -4,6 +4,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   name: { type: String, required: true },
   role: { type: String, enum: ['super_user', 'admin', 'teacher', 'parent', 'student'], required: true },
+  gender: { type: String, enum: ['Masculin', 'Féminin'], required: function() { return this.role === 'student' || this.role === 'parent'; } },
   avatar: { type: String },
   phone: { type: String },
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
