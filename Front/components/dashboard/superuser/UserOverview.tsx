@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MatiereTagsInput } from '@/components/ui/matiere-tags-input';
 import { ClasseTagsInput } from '@/components/ui/classe-tags-input';
 import { 
@@ -27,6 +28,7 @@ import {
   Phone,
   Calendar,
   MoreHorizontal,
+  UserX,
   Download,
   UserPlus
 } from 'lucide-react';
@@ -34,10 +36,11 @@ import { toast } from 'sonner';
 
 interface User {
   id: string;
+  _id: string;
   name: string;
   email: string;
   phone: string;
-  role: 'Étudiant' | 'Enseignant' | 'Parent' | 'Administrateur';
+  role: 'Étudiant' | 'Enseignant' | 'Parent' | 'Administrateur' | 'Super Utilisateur';
   school: string;
   schoolId: string;
   status: 'Actif' | 'Inactif' | 'Suspendu';
@@ -72,6 +75,16 @@ export function UserOverview() {
   const [isCreateParentOpen, setIsCreateParentOpen] = useState(false);
   const [isCreateStudentOpen, setIsCreateStudentOpen] = useState(false);
   const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isSuspendConfirmOpen, setIsSuspendConfirmOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    status: 'Actif',
+    schoolId: ''
+  });
   
   // États pour les formulaires
   const [selectedMatieres, setSelectedMatieres] = useState<string[]>([]);
@@ -619,57 +632,58 @@ export function UserOverview() {
   // Les données des écoles viennent maintenant de l'API et sont stockées dans l'état schools
 
   // Fonction pour récupérer tous les utilisateurs de la BD
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const token = localStorage.getItem('daara_token');
-        if (!token) {
-          console.warn('Aucun token trouvé pour récupérer les utilisateurs');
-          return;
-        }
-
-        const response = await fetch('http://localhost:5000/api/users', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error('Erreur lors de la récupération des utilisateurs');
-        }
-        
-        const data = await response.json();
-        
-        // Mapper les données du backend vers le format du frontend
-        const mappedUsers = data.map((user: any) => ({
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone || '',
-          role: mapRole(user.role),
-          school: user.schoolId?.name || 'Non assigné',
-          schoolId: user.schoolId?._id || '',
-          status: user.status || 'Actif',
-          createdAt: new Date(user.createdAt || Date.now()).toISOString().split('T')[0],
-          lastLogin: user.lastLogin ? new Date(user.lastLogin).toISOString().split('T')[0] : 'Jamais',
-          subject: user.subjects?.join(', ') || '',
-          class: user.class || '',
-          children: Array.isArray(user.children) ? user.children.length : 0,
-          gender: user.gender || ''
-        }));
-        
-        setUsers(mappedUsers);
-        console.log(`✅ ${mappedUsers.length} utilisateur(s) récupéré(s) depuis la BD`);
-      } catch (error) {
-        console.error('Erreur lors du chargement des utilisateurs:', error);
-        setError('Impossible de charger la liste des utilisateurs');
-        setUsers([]);
+  const fetchUsers = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        console.warn('Aucun token trouvé pour récupérer les utilisateurs');
+        return;
       }
-    };
-    
-    fetchUsers();
+
+      const response = await fetch('http://localhost:5000/api/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération des utilisateurs');
+      }
+      
+      const data = await response.json();
+      
+      // Mapper les données du backend vers le format du frontend
+      const mappedUsers = data.map((user: any) => ({
+        id: user._id,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        role: mapRole(user.role),
+        school: user.schoolId?.name || 'Non assigné',
+        schoolId: user.schoolId?._id || '',
+        status: user.status || 'Actif',
+        createdAt: new Date(user.createdAt || Date.now()).toISOString().split('T')[0],
+        lastLogin: user.lastLogin ? new Date(user.lastLogin).toISOString().split('T')[0] : 'Jamais',
+        subject: user.subjects?.join(', ') || '',
+        class: user.class || '',
+        children: Array.isArray(user.children) ? user.children.length : 0,
+        gender: user.gender || ''
+      }));
+      
+      setUsers(mappedUsers);
+      console.log(`✅ ${mappedUsers.length} utilisateur(s) récupéré(s) depuis la BD`);
+    } catch (error) {
+      console.error('Erreur lors du chargement des utilisateurs:', error);
+      setError('Impossible de charger la liste des utilisateurs');
+      setUsers([]);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   // Fonction pour mapper les rôles du backend vers le frontend
   const mapRole = (role: string) => {
@@ -803,6 +817,154 @@ export function UserOverview() {
       
     } catch (err: any) {
       setError(err.message || 'Erreur lors de la création du parent');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Fonction de gérance d'édition d'utilisateur
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('✏️ Début de handleEditUser, utilisateur sélectionné:', selectedUser);
+    console.log('📝 Données du formulaire:', editForm);
+    
+    if (!selectedUser) {
+      console.error('❌ Aucun utilisateur sélectionné pour l\'édition');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('📡 Envoi de la requête PUT vers:', `http://localhost:5000/api/users/${selectedUser._id}`);
+      
+      const response = await fetch(`http://localhost:5000/api/users/${selectedUser._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
+        },
+        body: JSON.stringify({
+          name: editForm.name,
+          email: editForm.email,
+          phone: editForm.phone,
+          status: editForm.status,
+          ...(editForm.schoolId && selectedUser.role !== 'Super Utilisateur' && { schoolId: editForm.schoolId })
+        })
+      });
+
+      console.log('📡 Réponse PUT reçue:', response.status, response.statusText);
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la modification');
+      }
+
+      console.log('✅ Utilisateur modifié avec succès');
+      setIsEditUserOpen(false);
+      setSelectedUser(null);
+      setEditForm({ name: '', email: '', phone: '', status: 'Actif', schoolId: '' });
+      
+      // Rafraîchir la liste des utilisateurs
+      console.log('🔄 Rafraîchissement de la liste des utilisateurs...');
+      await fetchUsers();
+      
+      alert('Utilisateur modifié avec succès');
+    } catch (error) {
+      console.error('❌ Erreur lors de la modification:', error);
+      alert('Erreur lors de la modification de l\'utilisateur');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Fonction pour supprimer un utilisateur
+  const handleDeleteUser = async () => {
+    console.log('🗑️ Début de handleDeleteUser, utilisateur sélectionné:', selectedUser);
+    
+    if (!selectedUser) {
+      console.error('❌ Aucun utilisateur sélectionné pour la suppression');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('📡 Envoi de la requête DELETE vers:', `http://localhost:5000/api/users/${selectedUser._id}`);
+      
+      const response = await fetch(`http://localhost:5000/api/users/${selectedUser._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
+        }
+      });
+
+      console.log('📡 Réponse DELETE reçue:', response.status, response.statusText);
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la suppression');
+      }
+
+      console.log('✅ Utilisateur supprimé avec succès');
+      setIsDeleteConfirmOpen(false);
+      setSelectedUser(null);
+      
+      // Rafraîchir la liste des utilisateurs
+      console.log('🔄 Rafraîchissement de la liste des utilisateurs...');
+      await fetchUsers();
+      
+      alert('Utilisateur supprimé avec succès');
+    } catch (error) {
+      console.error('❌ Erreur lors de la suppression:', error);
+      alert('Erreur lors de la suppression de l\'utilisateur');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fonction pour suspendre/réactiver un utilisateur
+  const handleSuspendUser = async () => {
+    console.log('⏸️ Début de handleSuspendUser, utilisateur sélectionné:', selectedUser);
+    
+    if (!selectedUser) {
+      console.error('❌ Aucun utilisateur sélectionné pour la suspension');
+      return;
+    }
+
+    const newStatus = selectedUser.status === 'Suspendu' ? 'Actif' : 'Suspendu';
+    console.log('📝 Changement de statut:', selectedUser.status, '->', newStatus);
+    
+    setLoading(true);
+    
+    try {
+      console.log('📡 Envoi de la requête PUT vers:', `http://localhost:5000/api/users/${selectedUser._id}`);
+      
+      const response = await fetch(`http://localhost:5000/api/users/${selectedUser._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
+        },
+        body: JSON.stringify({
+          status: newStatus
+        })
+      });
+
+      console.log('📡 Réponse PUT reçue:', response.status, response.statusText);
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la modification du statut');
+      }
+
+      console.log('✅ Statut modifié avec succès');
+      setIsSuspendConfirmOpen(false);
+      setSelectedUser(null);
+      
+      // Rafraîchir la liste des utilisateurs
+      console.log('🔄 Rafraîchissement de la liste des utilisateurs...');
+      await fetchUsers();
+      
+      alert(`Utilisateur ${newStatus.toLowerCase()} avec succès`);
+    } catch (error) {
+      console.error('❌ Erreur lors de la modification du statut:', error);
+      alert('Erreur lors de la modification du statut');
     } finally {
       setLoading(false);
     }
@@ -1281,16 +1443,52 @@ export function UserOverview() {
                           <Button 
                             variant="outline" 
                             size="sm"
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setEditForm({
+                                name: user.name,
+                                email: user.email,
+                                phone: user.phone || '',
+                                status: user.status,
+                                schoolId: user.schoolId || ''
+                              });
+                              setIsEditUserOpen(true);
+                            }}
                           >
                             <Edit className="mr-2 h-4 w-4" />
                             Modifier
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  console.log('🔘 Clic sur Suspendre/Réactiver pour l\'utilisateur:', user);
+                                  setSelectedUser(user);
+                                  setIsSuspendConfirmOpen(true);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <UserX className="mr-2 h-4 w-4" />
+                                {user.status === 'Suspendu' ? 'Réactiver' : 'Suspendre'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  console.log('🔘 Clic sur Supprimer pour l\'utilisateur:', user);
+                                  setSelectedUser(user);
+                                  setIsDeleteConfirmOpen(true);
+                                }}
+                                className="cursor-pointer text-red-600"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Supprimer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </div>
@@ -2059,6 +2257,295 @@ export function UserOverview() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog pour voir les détails d'un utilisateur */}
+      <Dialog open={isViewDetailsOpen} onOpenChange={setIsViewDetailsOpen}>
+        <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Eye className="h-5 w-5" />
+              <span>Détails de l&apos;utilisateur</span>
+            </DialogTitle>
+            <DialogDescription>
+              Informations détaillées de l&apos;utilisateur sélectionné
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedUser && (
+            <div className="space-y-6">
+              {/* Informations générales */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Nom complet</Label>
+                  <p className="p-2 bg-gray-50 rounded-md">{selectedUser.name}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Email</Label>
+                  <p className="p-2 bg-gray-50 rounded-md">{selectedUser.email}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Téléphone</Label>
+                  <p className="p-2 bg-gray-50 rounded-md">{selectedUser.phone || 'Non renseigné'}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Rôle</Label>
+                  <div className="p-2">
+                    <Badge className={getRoleColor(selectedUser.role)}>
+                      {selectedUser.role}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">École</Label>
+                  <p className="p-2 bg-gray-50 rounded-md">{selectedUser.school}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Statut</Label>
+                  <div className="p-2">
+                    <Badge variant="outline" className={getStatusColor(selectedUser.status)}>
+                      {selectedUser.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Informations spécifiques selon le rôle */}
+              {selectedUser.role === 'Étudiant' && selectedUser.class && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Classe</Label>
+                  <p className="p-2 bg-blue-50 rounded-md">{selectedUser.class}</p>
+                </div>
+              )}
+
+              {selectedUser.role === 'Enseignant' && selectedUser.subject && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Matières enseignées</Label>
+                  <p className="p-2 bg-green-50 rounded-md">{selectedUser.subject}</p>
+                </div>
+              )}
+
+              {selectedUser.role === 'Parent' && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Nombre d&apos;enfants</Label>
+                  <p className="p-2 bg-orange-50 rounded-md">{selectedUser.children} enfant(s)</p>
+                </div>
+              )}
+
+              {/* Informations de création */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Date de création</Label>
+                  <p className="p-2 bg-gray-50 rounded-md">{new Date(selectedUser.createdAt).toLocaleDateString('fr-FR')}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Dernière connexion</Label>
+                  <p className="p-2 bg-gray-50 rounded-md">{selectedUser.lastLogin}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog pour modifier un utilisateur */}
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+        <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Edit className="h-5 w-5" />
+              <span>Modifier l&apos;utilisateur</span>
+            </DialogTitle>
+            <DialogDescription>
+              Modifier les informations de l&apos;utilisateur sélectionné
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedUser && (
+            <form onSubmit={handleEditUser} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Nom complet *</Label>
+                  <Input 
+                    id="edit-name" 
+                    value={editForm.name} 
+                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                    required 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email *</Label>
+                  <Input 
+                    id="edit-email" 
+                    type="email" 
+                    value={editForm.email} 
+                    onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                    required 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-phone">Téléphone</Label>
+                  <Input 
+                    id="edit-phone" 
+                    value={editForm.phone} 
+                    onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-status">Statut</Label>
+                  <Select value={editForm.status} onValueChange={(value) => setEditForm({...editForm, status: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner un statut" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Actif">Actif</SelectItem>
+                      <SelectItem value="Inactif">Inactif</SelectItem>
+                      <SelectItem value="Suspendu">Suspendu</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Champs spécifiques selon le rôle */}
+              {selectedUser.role !== 'Super Utilisateur' && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-school">École</Label>
+                  <Select value={editForm.schoolId} onValueChange={(value) => setEditForm({...editForm, schoolId: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner une école" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {schools.map((school) => (
+                        <SelectItem key={school._id} value={school._id}>
+                          {school.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button type="button" variant="outline" onClick={() => setIsEditUserOpen(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? 'Modification...' : 'Modifier'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de confirmation pour suppression */}
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <DialogContent className="mx-4 w-[95vw] max-w-md sm:mx-auto sm:w-full">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              <span>Confirmer la suppression</span>
+            </DialogTitle>
+            <DialogDescription>
+              Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedUser && (
+            <div className="space-y-4">
+              <div className="p-4 bg-red-50 rounded-md border border-red-200">
+                <p className="font-medium">{selectedUser.name}</p>
+                <p className="text-sm text-gray-600">{selectedUser.email}</p>
+                <p className="text-sm text-gray-600">{selectedUser.role} - {selectedUser.school}</p>
+              </div>
+              
+              <div className="flex justify-end space-x-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsDeleteConfirmOpen(false);
+                    setSelectedUser(null);
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button 
+                  variant="destructive"
+                  onClick={() => {
+                    console.log('🔘 Clic sur le bouton Supprimer dans le modal de confirmation');
+                    handleDeleteUser();
+                  }}
+                  disabled={loading}
+                >
+                  {loading ? 'Suppression...' : 'Supprimer définitivement'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de confirmation pour suspension/réactivation */}
+      <Dialog open={isSuspendConfirmOpen} onOpenChange={setIsSuspendConfirmOpen}>
+        <DialogContent className="mx-4 w-[95vw] max-w-md sm:mx-auto sm:w-full">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2 text-orange-600">
+              <UserX className="h-5 w-5" />
+              <span>
+                {selectedUser?.status === 'Suspendu' ? 'Réactiver l\'utilisateur' : 'Suspendre l\'utilisateur'}
+              </span>
+            </DialogTitle>
+            <DialogDescription>
+              {selectedUser?.status === 'Suspendu' 
+                ? 'Êtes-vous sûr de vouloir réactiver cet utilisateur ? Il pourra de nouveau accéder au système.'
+                : 'Êtes-vous sûr de vouloir suspendre cet utilisateur ? Il ne pourra plus accéder au système.'
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedUser && (
+            <div className="space-y-4">
+              <div className="p-4 bg-orange-50 rounded-md border border-orange-200">
+                <p className="font-medium">{selectedUser.name}</p>
+                <p className="text-sm text-gray-600">{selectedUser.email}</p>
+                <p className="text-sm text-gray-600">{selectedUser.role} - {selectedUser.school}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Statut actuel:</span>
+                  <span className="text-sm font-medium">
+                    {selectedUser.status}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsSuspendConfirmOpen(false);
+                    setSelectedUser(null);
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button 
+                  variant={selectedUser.status === 'Suspendu' ? 'default' : 'secondary'}
+                  onClick={() => {
+                    console.log('🔘 Clic sur le bouton Suspendre dans le modal de confirmation');
+                    handleSuspendUser();
+                  }}
+                  disabled={loading}
+                >
+                  {loading 
+                    ? (selectedUser.status === 'Suspendu' ? 'Réactivation...' : 'Suspension...')
+                    : (selectedUser.status === 'Suspendu' ? 'Réactiver' : 'Suspendre')
+                  }
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
