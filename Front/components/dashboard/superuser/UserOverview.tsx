@@ -674,6 +674,13 @@ export function UserOverview() {
       
       setUsers(mappedUsers);
       console.log(`✅ ${mappedUsers.length} utilisateur(s) récupéré(s) depuis la BD`);
+      
+      // Debug: Afficher tous les rôles
+      const roleStats = mappedUsers.reduce((acc, user) => {
+        acc[user.role] = (acc[user.role] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log('📊 Statistiques des rôles:', roleStats);
     } catch (error) {
       console.error('Erreur lors du chargement des utilisateurs:', error);
       setError('Impossible de charger la liste des utilisateurs');
@@ -1127,6 +1134,10 @@ export function UserOverview() {
     'Parent': users.filter(u => u.role === 'Parent').length,
     'Administrateur': users.filter(u => u.role === 'Administrateur').length
   };
+
+  // Debug: Log des administrateurs
+  const administrators = users.filter(u => u.role === 'Administrateur');
+  console.log(`🔍 Debug administrateurs: ${administrators.length} trouvés`, administrators.map(a => ({ name: a.name, email: a.email, role: a.role })));
 
   return (
     <div className="space-y-6">
@@ -1598,12 +1609,12 @@ export function UserOverview() {
             <CardHeader>
               <CardTitle>Administrateurs</CardTitle>
               <CardDescription>
-                {users.filter(u => u.role === 'Administrateur').length} administrateur(s) dans le système
+                {filteredUsers.filter(u => u.role === 'Administrateur').length} administrateur(s) dans le système
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {users.filter(u => u.role === 'Administrateur').map((user) => (
+                {filteredUsers.filter(u => u.role === 'Administrateur').map((user) => (
                   <div key={user.id} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">

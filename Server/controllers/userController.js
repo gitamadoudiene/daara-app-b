@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 // Créer un nouveau parent
 exports.createParent = async (req, res) => {
   try {
-    const { name, email, phone, address, schoolId, gender, status } = req.body;
+    const { name, email, phone, address, schoolId, gender, status, profession, emergencyPhone, relation } = req.body;
     
     // Validation des champs requis
     if (!name || !email || !phone) {
@@ -44,7 +44,12 @@ exports.createParent = async (req, res) => {
       role: 'parent',
       gender: gender || undefined,
       schoolId: validSchoolId,
-      password: hashedPassword
+      password: hashedPassword,
+      address: address?.trim(),
+      status: status || 'Actif',
+      profession: profession?.trim(),
+      emergencyPhone: emergencyPhone?.trim(),
+      relation: relation?.trim()
     });
     
     const savedParent = await parent.save();
@@ -79,10 +84,34 @@ exports.getAllParents = async (req, res) => {
   }
 };
 
+// Récupérer les parents d'une école spécifique
+exports.getParentsBySchool = async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(schoolId)) {
+      return res.status(400).json({ message: 'ID d\'école invalide' });
+    }
+    
+    const parents = await User.find({ 
+      role: 'parent', 
+      schoolId: new mongoose.Types.ObjectId(schoolId) 
+    })
+      .populate('schoolId', 'name')
+      .select('-password');
+      
+    res.json(parents);
+  } catch (err) {
+    console.error('Erreur lors de la récupération des parents par école:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.find()
       .populate('schoolId', 'name')
+      .populate('classId', 'name level section')
       .select('-password');
     res.json(users);
   } catch (err) {
@@ -187,6 +216,10 @@ exports.createStudent = async (req, res) => {
       gender: gender || undefined,
       schoolId: validSchoolId,
       class: classId,
+      parentId: validParentId,
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+      address: address?.trim(),
+      status: status || 'Actif',
       password: hashedPassword
     });
     

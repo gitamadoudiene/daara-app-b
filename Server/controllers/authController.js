@@ -19,7 +19,7 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).populate('schoolId');
   if (!user) return res.status(400).json({ message: 'Échec de la connexion. Veuillez vérifier vos identifiants.' });
     // Vérifier le statut si admin
     if (user.role === 'admin') {
@@ -42,7 +42,24 @@ exports.login = async (req, res) => {
       await Admin.findOneAndUpdate({ email: user.email }, { lastLogin: new Date() });
     }
     const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    res.json({ token, user });
+    
+    // Préparer l'objet utilisateur avec les informations de l'école
+    const userResponse = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      schoolId: user.schoolId?._id,
+      school: user.schoolId ? {
+        id: user.schoolId._id,
+        name: user.schoolId.name,
+        address: user.schoolId.address,
+        phone: user.schoolId.phone,
+        email: user.schoolId.email
+      } : null
+    };
+    
+    res.json({ token, user: userResponse });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

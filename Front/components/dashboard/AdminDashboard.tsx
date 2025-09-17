@@ -1,12 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -35,8 +39,15 @@ import {
   X,
   LogOut,
   User,
-  ChevronDown
+  ChevronDown,
+  UserPlus,
+  Baby,
+  Phone,
+  Mail,
+  MapPin,
+  Plus
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { UserManagement } from './admin/UserManagement';
 import { SchoolStructure } from './admin/SchoolStructure';
@@ -44,8 +55,11 @@ import { ReportsAnalytics } from './admin/ReportsAnalytics';
 import { SecuritySettings } from './admin/SecuritySettings';
 import { DataManagement } from './admin/DataManagement';
 import { SystemSettings } from './admin/SystemSettings';
+import { ClassAssignment } from './admin/ClassAssignment';
+import { ScheduleManagement } from './admin/ScheduleManagement';
+import { ExamManagement } from './admin/ExamManagement';
 
-type ActivePage = 'overview' | 'users' | 'structure' | 'reports' | 'security' | 'data' | 'system';
+type ActivePage = 'overview' | 'users' | 'structure' | 'reports' | 'schedule' | 'security' | 'data' | 'system';
 
 interface DashboardStats {
   totalUsers: number;
@@ -69,6 +83,48 @@ export function AdminDashboard() {
   const [activePage, setActivePage] = useState<ActivePage>('overview');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { logout, user } = useAuth();
+
+  // États pour les formulaires d'ajout
+  const [isCreateParentOpen, setIsCreateParentOpen] = useState(false);
+  const [isCreateStudentOpen, setIsCreateStudentOpen] = useState(false);
+  const [isCreateClassOpen, setIsCreateClassOpen] = useState(false);
+  const [classes, setClasses] = useState<{ id: string, name: string, level: string }[]>([]);
+  const [parents, setParents] = useState<{ id: string, name: string }[]>([]);
+  
+  // États pour les formulaires
+  const [parentForm, setParentForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    schoolId: user?.schoolId || '',
+    gender: '',
+    status: 'Actif',
+    profession: '',
+    emergencyPhone: '',
+    relation: ''
+  });
+  
+  const [studentForm, setStudentForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    schoolId: user?.schoolId || '',
+    classId: '',
+    parentId: undefined as string | undefined,
+    dateOfBirth: '',
+    gender: '',
+    status: 'Actif'
+  });
+
+  const [classForm, setClassForm] = useState({
+    name: '',
+    level: '',
+    capacity: '',
+    academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1), // Par exemple: "2024-2025"
+    schoolId: user?.schoolId || ''
+  });
 
   // Mock dashboard stats
   const stats: DashboardStats = {
@@ -123,11 +179,12 @@ export function AdminDashboard() {
   const sidebarItems = [
     { id: 'overview', label: 'Vue d\'ensemble', icon: BarChart3 },
     { id: 'users', label: 'Gestion Utilisateurs', icon: Users },
-    { id: 'structure', label: 'Structure École', icon: School },
-    { id: 'reports', label: 'Rapports & Analytics', icon: FileText },
+    { id: 'structure', label: 'Classes & Affectation', icon: School },
+    { id: 'reports', label: 'Gestion des Classes', icon: BookOpen },
+    { id: 'schedule', label: 'Emploi du Temps', icon: Calendar },
     { id: 'security', label: 'Paramètres Sécurité', icon: Shield },
     { id: 'data', label: 'Gestion Données', icon: Database },
-    { id: 'system', label: 'Paramètres Système', icon: Settings }
+    { id: 'system', label: 'Examens & Notes', icon: ClipboardList }
   ];
 
   const handlePageChange = (pageId: ActivePage) => {
@@ -183,6 +240,233 @@ export function AdminDashboard() {
     }
   };
 
+  // Fonction pour charger les classes de l'école
+  const fetchClasses = async () => {
+    try {
+      const token = localStorage.getItem('daara_token');
+      const response = await fetch(`http://localhost:5000/api/classes/school/${user?.schoolId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setClasses(data.map((cls: any) => ({ id: cls._id, name: cls.name, level: cls.level })));
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des classes:', error);
+    }
+  };
+
+  // Charger les données nécessaires pour les formulaires
+  useEffect(() => {
+    if (user?.schoolId) {
+      // Charger les classes de l'école de l'admin
+      const fetchClassesLocal = async () => {
+        try {
+          const token = localStorage.getItem('daara_token');
+          const response = await fetch(`http://localhost:5000/api/classes/school/${user.schoolId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setClasses(data.map((cls: any) => ({ id: cls._id, name: cls.name, level: cls.level })));
+          }
+        } catch (error) {
+          console.error('Erreur lors du chargement des classes:', error);
+        }
+      };
+
+      // Charger les parents de l'école de l'admin
+      const fetchParents = async () => {
+        try {
+          const token = localStorage.getItem('daara_token');
+          const response = await fetch('http://localhost:5000/api/users/parents', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            // Filtrer les parents par l'école de l'admin
+            const schoolParents = data.filter((parent: any) => parent.schoolId?._id === user.schoolId);
+            setParents(schoolParents.map((parent: any) => ({ id: parent._id, name: parent.name })));
+          }
+        } catch (error) {
+          console.error('Erreur lors du chargement des parents:', error);
+        }
+      };
+
+      fetchClassesLocal();
+      fetchParents();
+    }
+  }, [user?.schoolId]);
+
+  // Fonction pour créer un parent
+  const handleCreateParent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('daara_token');
+      const response = await fetch('http://localhost:5000/api/users/parents', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: parentForm.name,
+          email: parentForm.email,
+          phone: parentForm.phone,
+          address: parentForm.address,
+          schoolId: user?.schoolId, // École verrouillée
+          gender: parentForm.gender,
+          status: parentForm.status,
+          profession: parentForm.profession,
+          emergencyPhone: parentForm.emergencyPhone,
+          relation: parentForm.relation
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Parent créé avec succès');
+        setIsCreateParentOpen(false);
+        // Reset form
+        setParentForm({
+          name: '',
+          email: '',
+          phone: '',
+          address: '',
+          schoolId: user?.schoolId || '',
+          gender: '',
+          status: 'Actif',
+          profession: '',
+          emergencyPhone: '',
+          relation: ''
+        });
+        // Rafraîchir la liste des parents
+        const fetchParents = async () => {
+          const parentsResponse = await fetch('http://localhost:5000/api/users/parents', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (parentsResponse.ok) {
+            const parentsData = await parentsResponse.json();
+            const schoolParents = parentsData.filter((parent: any) => parent.schoolId?._id === user?.schoolId);
+            setParents(schoolParents.map((parent: any) => ({ id: parent._id, name: parent.name })));
+          }
+        };
+        fetchParents();
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Erreur lors de la création du parent');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors de la création du parent');
+    }
+  };
+
+  // Fonction pour créer un étudiant
+  const handleCreateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('daara_token');
+      const response = await fetch('http://localhost:5000/api/users/students', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: studentForm.name,
+          email: studentForm.email,
+          phone: studentForm.phone,
+          address: studentForm.address,
+          schoolId: user?.schoolId, // École verrouillée
+          classId: studentForm.classId,
+          parentId: studentForm.parentId,
+          dateOfBirth: studentForm.dateOfBirth,
+          gender: studentForm.gender,
+          status: studentForm.status
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Étudiant créé avec succès');
+        setIsCreateStudentOpen(false);
+        // Reset form
+        setStudentForm({
+          name: '',
+          email: '',
+          phone: '',
+          address: '',
+          schoolId: user?.schoolId || '',
+          classId: '',
+          parentId: undefined,
+          dateOfBirth: '',
+          gender: '',
+          status: 'Actif'
+        });
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Erreur lors de la création de l\'étudiant');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors de la création de l\'étudiant');
+    }
+  };
+
+  // Fonction pour créer une classe
+  const handleCreateClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('daara_token');
+      const response = await fetch('http://localhost:5000/api/classes', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: classForm.name,
+          level: classForm.level,
+          capacity: parseInt(classForm.capacity),
+          academicYear: classForm.academicYear,
+          schoolId: user?.schoolId // École verrouillée
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Classe créée avec succès');
+        setIsCreateClassOpen(false);
+        // Reset form
+        setClassForm({
+          name: '',
+          level: '',
+          capacity: '',
+          academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1),
+          schoolId: user?.schoolId || ''
+        });
+        // Rafraîchir la liste des classes
+        fetchClasses();
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Erreur lors de la création de la classe');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors de la création de la classe');
+    }
+  };
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-white">
       <div className="flex items-center flex-shrink-0 px-4 py-6 border-b">
@@ -193,6 +477,11 @@ export function AdminDashboard() {
           <div>
             <h1 className="text-lg font-bold text-gray-900">DAARA</h1>
             <p className="text-xs text-gray-500">Administration</p>
+            {user?.school?.name && (
+              <p className="text-xs text-blue-600 font-medium mt-1">
+                {user.school.name}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -275,7 +564,19 @@ export function AdminDashboard() {
       case 'users':
         return <UserManagement />;
       case 'structure':
-        return <SchoolStructure />;
+        return (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold mb-2">Classes & Affectation</h2>
+              <p className="text-muted-foreground">
+                Gérez les classes et l&apos;affectation des étudiants
+              </p>
+            </div>
+            <div className="grid gap-6">
+              <ClassAssignment />
+            </div>
+          </div>
+        );
       case 'reports':
         return <ReportsAnalytics />;
       case 'security':
@@ -375,45 +676,368 @@ export function AdminDashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 sm:space-y-3">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start h-auto py-3"
-                    onClick={() => handlePageChange('users')}
-                  >
-                    <Users className="mr-2 h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">Ajouter Utilisateur</span>
-                  </Button>
+                  <Dialog open={isCreateParentOpen} onOpenChange={setIsCreateParentOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start h-auto py-3"
+                      >
+                        <UserPlus className="mr-2 h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">Ajouter Parent</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Ajouter un nouveau Parent</DialogTitle>
+                        <DialogDescription>
+                          Veuillez remplir les informations du parent pour {user?.school?.name || 'votre école'}.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form onSubmit={handleCreateParent} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="parent-name">Nom complet</Label>
+                            <Input
+                              id="parent-name"
+                              value={parentForm.name}
+                              onChange={(e) => setParentForm({...parentForm, name: e.target.value})}
+                              placeholder="Nom du parent"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="parent-email">Email</Label>
+                            <Input
+                              id="parent-email"
+                              type="email"
+                              value={parentForm.email}
+                              onChange={(e) => setParentForm({...parentForm, email: e.target.value})}
+                              placeholder="email@example.com"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="parent-phone">Téléphone</Label>
+                            <Input
+                              id="parent-phone"
+                              value={parentForm.phone}
+                              onChange={(e) => setParentForm({...parentForm, phone: e.target.value})}
+                              placeholder="+221 XX XXX XX XX"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="parent-gender">Genre</Label>
+                            <Select value={parentForm.gender} onValueChange={(value) => setParentForm({...parentForm, gender: value})}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sélectionner le genre" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Masculin">Masculin</SelectItem>
+                                <SelectItem value="Féminin">Féminin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="parent-profession">Profession</Label>
+                            <Input
+                              id="parent-profession"
+                              value={parentForm.profession}
+                              onChange={(e) => setParentForm({...parentForm, profession: e.target.value})}
+                              placeholder="Profession du parent"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="parent-emergency">Téléphone d&apos;urgence</Label>
+                            <Input
+                              id="parent-emergency"
+                              value={parentForm.emergencyPhone}
+                              onChange={(e) => setParentForm({...parentForm, emergencyPhone: e.target.value})}
+                              placeholder="+221 XX XXX XX XX"
+                            />
+                          </div>
+                          <div className="md:col-span-2 space-y-2">
+                            <Label htmlFor="parent-address">Adresse</Label>
+                            <Input
+                              id="parent-address"
+                              value={parentForm.address}
+                              onChange={(e) => setParentForm({...parentForm, address: e.target.value})}
+                              placeholder="Adresse complète"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>École</Label>
+                            <div className="p-2 bg-gray-50 rounded border">
+                              <span className="text-sm text-gray-600">🏫 {user?.school?.name || 'École non spécifiée'}</span>
+                              <p className="text-xs text-gray-500 mt-1">École verrouillée pour cet administrateur</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-end space-x-2 pt-4">
+                          <Button type="button" variant="outline" onClick={() => setIsCreateParentOpen(false)}>
+                            Annuler
+                          </Button>
+                          <Button type="submit">Créer le Parent</Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog open={isCreateStudentOpen} onOpenChange={setIsCreateStudentOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start h-auto py-3"
+                      >
+                        <Baby className="mr-2 h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">Ajouter Étudiant</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Ajouter un nouvel Étudiant</DialogTitle>
+                        <DialogDescription>
+                          Veuillez remplir les informations de l&apos;étudiant pour {user?.school?.name || 'votre école'}.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form onSubmit={handleCreateStudent} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="student-name">Nom complet</Label>
+                            <Input
+                              id="student-name"
+                              value={studentForm.name}
+                              onChange={(e) => setStudentForm({...studentForm, name: e.target.value})}
+                              placeholder="Nom de l'étudiant"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="student-email">Email</Label>
+                            <Input
+                              id="student-email"
+                              type="email"
+                              value={studentForm.email}
+                              onChange={(e) => setStudentForm({...studentForm, email: e.target.value})}
+                              placeholder="email@example.com"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="student-phone">Téléphone</Label>
+                            <Input
+                              id="student-phone"
+                              value={studentForm.phone}
+                              onChange={(e) => setStudentForm({...studentForm, phone: e.target.value})}
+                              placeholder="+221 XX XXX XX XX"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="student-birth">Date de naissance</Label>
+                            <Input
+                              id="student-birth"
+                              type="date"
+                              value={studentForm.dateOfBirth}
+                              onChange={(e) => setStudentForm({...studentForm, dateOfBirth: e.target.value})}
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="student-gender">Genre</Label>
+                            <Select value={studentForm.gender} onValueChange={(value) => setStudentForm({...studentForm, gender: value})}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sélectionner le genre" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Masculin">Masculin</SelectItem>
+                                <SelectItem value="Féminin">Féminin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="student-class">Classe</Label>
+                            <Select value={studentForm.classId} onValueChange={(value) => setStudentForm({...studentForm, classId: value})}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sélectionner une classe" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {classes.map((classItem) => (
+                                  <SelectItem key={classItem.id} value={classItem.id}>
+                                    {classItem.name} - {classItem.level}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="student-parent">Parent</Label>
+                            <Select value={studentForm.parentId} onValueChange={(value) => setStudentForm({...studentForm, parentId: value})}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sélectionner un parent" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {parents.map((parent) => (
+                                  <SelectItem key={parent.id} value={parent.id}>
+                                    {parent.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="md:col-span-2 space-y-2">
+                            <Label htmlFor="student-address">Adresse</Label>
+                            <Input
+                              id="student-address"
+                              value={studentForm.address}
+                              onChange={(e) => setStudentForm({...studentForm, address: e.target.value})}
+                              placeholder="Adresse complète"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>École</Label>
+                            <div className="p-2 bg-gray-50 rounded border">
+                              <span className="text-sm text-gray-600">🏫 {user?.school?.name || 'École non spécifiée'}</span>
+                              <p className="text-xs text-gray-500 mt-1">École verrouillée pour cet administrateur</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-end space-x-2 pt-4">
+                          <Button type="button" variant="outline" onClick={() => setIsCreateStudentOpen(false)}>
+                            Annuler
+                          </Button>
+                          <Button type="submit">Créer l&apos;Étudiant</Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog open={isCreateClassOpen} onOpenChange={setIsCreateClassOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start h-auto py-3"
+                      >
+                        <Plus className="mr-2 h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">Créer Classe</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Créer une nouvelle Classe</DialogTitle>
+                        <DialogDescription>
+                          Veuillez remplir les informations de la classe pour {user?.school?.name || 'votre école'}.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form onSubmit={handleCreateClass} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="class-name">Nom de la Classe</Label>
+                            <Input
+                              id="class-name"
+                              value={classForm.name}
+                              onChange={(e) => setClassForm({...classForm, name: e.target.value})}
+                              placeholder="Ex: 6ème A, CM2 B"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="class-level">Niveau</Label>
+                            <Select 
+                              value={classForm.level} 
+                              onValueChange={(value) => setClassForm({...classForm, level: value})}
+                              required
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sélectionner le niveau" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="CP">CP - Cours Préparatoire</SelectItem>
+                                <SelectItem value="CE1">CE1 - Cours Élémentaire 1</SelectItem>
+                                <SelectItem value="CE2">CE2 - Cours Élémentaire 2</SelectItem>
+                                <SelectItem value="CM1">CM1 - Cours Moyen 1</SelectItem>
+                                <SelectItem value="CM2">CM2 - Cours Moyen 2</SelectItem>
+                                <SelectItem value="6eme">6ème</SelectItem>
+                                <SelectItem value="5eme">5ème</SelectItem>
+                                <SelectItem value="4eme">4ème</SelectItem>
+                                <SelectItem value="3eme">3ème</SelectItem>
+                                <SelectItem value="2nde">2nde</SelectItem>
+                                <SelectItem value="1ere">1ère</SelectItem>
+                                <SelectItem value="terminale">Terminale</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="class-capacity">Capacité</Label>
+                            <Input
+                              id="class-capacity"
+                              type="number"
+                              value={classForm.capacity}
+                              onChange={(e) => setClassForm({...classForm, capacity: e.target.value})}
+                              placeholder="Ex: 35"
+                              min="1"
+                              max="50"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="class-academic-year">Année Académique</Label>
+                            <Select 
+                              value={classForm.academicYear} 
+                              onValueChange={(value) => setClassForm({...classForm, academicYear: value})}
+                              required
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sélectionner l'année" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="2023-2024">2023-2024</SelectItem>
+                                <SelectItem value="2024-2025">2024-2025</SelectItem>
+                                <SelectItem value="2025-2026">2025-2026</SelectItem>
+                                <SelectItem value="2026-2027">2026-2027</SelectItem>
+                                <SelectItem value="2027-2028">2027-2028</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>École</Label>
+                            <div className="p-2 bg-gray-50 rounded border">
+                              <span className="text-sm text-gray-600">🏫 {user?.school?.name || 'École non spécifiée'}</span>
+                              <p className="text-xs text-gray-500 mt-1">École verrouillée pour cet administrateur</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-end space-x-2 pt-4">
+                          <Button type="button" variant="outline" onClick={() => setIsCreateClassOpen(false)}>
+                            Annuler
+                          </Button>
+                          <Button type="submit">Créer la Classe</Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
                   <Button
                     variant="outline"
                     className="w-full justify-start h-auto py-3"
                     onClick={() => handlePageChange('structure')}
                   >
-                    <School className="mr-2 h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">Créer Classe</span>
+                    <UserCheck className="mr-2 h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Gestion des Classes</span>
                   </Button>
                   <Button
                     variant="outline"
                     className="w-full justify-start h-auto py-3"
                     onClick={() => handlePageChange('reports')}
                   >
-                    <FileText className="mr-2 h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">Générer Rapport</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start h-auto py-3"
-                    onClick={() => handlePageChange('data')}
-                  >
-                    <Database className="mr-2 h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">Sauvegarder Données</span>
+                    <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Emploi du Temps</span>
                   </Button>
                   <Button
                     variant="outline"
                     className="w-full justify-start h-auto py-3"
                     onClick={() => handlePageChange('system')}
                   >
-                    <Settings className="mr-2 h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">Paramètres Système</span>
+                    <ClipboardList className="mr-2 h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Examens et Notes</span>
                   </Button>
                 </CardContent>
               </Card>
@@ -496,7 +1120,14 @@ export function AdminDashboard() {
                 <div className="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center">
                   <School className="w-4 h-4 text-white" />
                 </div>
-                <h1 className="text-lg font-bold text-gray-900">DAARA</h1>
+                <div>
+                  <h1 className="text-lg font-bold text-gray-900">DAARA</h1>
+                  {user?.school?.name && (
+                    <p className="text-xs text-blue-600 font-medium">
+                      {user.school.name}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center space-x-2">

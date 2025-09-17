@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
@@ -23,80 +25,51 @@ import {
   BookOpen,
   GraduationCap,
   UserCheck,
-  Shield
+  Shield,
+  LoaderCircle,
+  UserX,
+  UserMinus,
+  X
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface User {
-  id: string;
+  _id: string;
   name: string;
   email: string;
   phone: string;
-  role: 'Étudiant' | 'Enseignant' | 'Administrateur';
+  role: 'student' | 'teacher' | 'parent' | 'admin';
+  schoolId: {
+    _id: string;
+    name: string;
+  };
+  classId?: {
+    _id: string;
+    name: string;
+    level: string;
+  };
   class?: string;
   subject?: string;
   status: 'Actif' | 'Inactif' | 'Suspendu';
   createdAt: string;
-  lastLogin: string;
+  lastLogin?: string;
+  children?: string[]; // IDs des enfants pour les parents
+  parentId?: string; // ID du parent pour les étudiants
+}
+
+interface ClassData {
+  _id: string;
+  name: string;
+  level: string;
 }
 
 export function UserManagement() {
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: '1',
-      name: 'Amadou Diallo',
-      email: 'amadou.diallo@daara.sn',
-      phone: '+221 77 123 4567',
-      role: 'Enseignant',
-      subject: 'Mathématiques',
-      status: 'Actif',
-      createdAt: '2024-01-15',
-      lastLogin: '2024-07-20'
-    },
-    {
-      id: '2',
-      name: 'Fatou Ba',
-      email: 'fatou.ba@daara.sn',
-      phone: '+221 70 987 6543',
-      role: 'Étudiant',
-      class: '6ème A',
-      status: 'Actif',
-      createdAt: '2024-02-01',
-      lastLogin: '2024-07-21'
-    },
-    {
-      id: '3',
-      name: 'Ousmane Seck',
-      email: 'ousmane.seck@daara.sn',
-      phone: '+221 76 555 1234',
-      role: 'Enseignant',
-      subject: 'Français',
-      status: 'Actif',
-      createdAt: '2024-01-20',
-      lastLogin: '2024-07-19'
-    },
-    {
-      id: '4',
-      name: 'Aissatou Ndiaye',
-      email: 'aissatou.ndiaye@daara.sn',
-      phone: '+221 78 999 8888',
-      role: 'Étudiant',
-      class: '5ème B',
-      status: 'Suspendu',
-      createdAt: '2024-02-15',
-      lastLogin: '2024-07-15'
-    },
-    {
-      id: '5',
-      name: 'Ibrahim Fall',
-      email: 'ibrahim.fall@daara.sn',
-      phone: '+221 77 444 3333',
-      role: 'Administrateur',
-      status: 'Actif',
-      createdAt: '2024-01-01',
-      lastLogin: '2024-07-22'
-    }
-  ]);
+  const { user } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [classes, setClasses] = useState<ClassData[]>([]);
+  const [loadingClasses, setLoadingClasses] = useState(true);
 
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -105,6 +78,166 @@ export function UserManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [classFilter, setClassFilter] = useState<string>('all');
+  const [classSearchTerm, setClassSearchTerm] = useState('');
+  const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
+  const [showClassDropdown, setShowClassDropdown] = useState(false);
+
+  // Charger les utilisateurs de l'école de l'admin
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!user?.schoolId) return;
+      
+      try {
+        setLoading(true);
+        const token = localStorage.getItem('daara_token');
+        const response = await fetch('http://localhost:5000/api/users', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const allUsers = await response.json();
+          // Filtrer uniquement les utilisateurs de l'école de l'admin
+          const schoolUsers = allUsers.filter((u: User) => 
+            u.schoolId && u.schoolId._id === user.schoolId
+          );
+          setUsers(schoolUsers);
+          setFilteredUsers(schoolUsers);
+        } else {
+          toast.error('Erreur lors du chargement des utilisateurs');
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        toast.error('Erreur lors du chargement des utilisateurs');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [user?.schoolId]);
+
+  // Charger les classes de l'école de l'admin
+  useEffect(() => {
+    const fetchClasses = async () => {
+      if (!user?.schoolId) {
+        console.log('Pas de schoolId pour l\'utilisateur');
+        return;
+      }
+      
+      try {
+        setLoadingClasses(true);
+        const token = localStorage.getItem('daara_token');
+        console.log('Chargement des classes pour l\'école:', user.schoolId);
+        
+        const response = await fetch('http://localhost:5000/api/classes', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const allClasses = await response.json();
+          console.log('Toutes les classes récupérées:', allClasses);
+          
+          // Filtrer uniquement les classes de l'école de l'admin
+          const schoolClasses = allClasses.filter((c: any) => {
+            const classSchoolId = typeof c.schoolId === 'object' ? c.schoolId?._id || c.schoolId : c.schoolId;
+            const userSchoolId = typeof user.schoolId === 'object' ? (user.schoolId as any)?._id || user.schoolId : user.schoolId;
+            return classSchoolId === userSchoolId;
+          });
+          
+          console.log('Classes filtrées pour l\'école:', schoolClasses);
+          setClasses(schoolClasses);
+        } else {
+          console.error('Erreur lors du chargement des classes:', response.status);
+          toast.error('Erreur lors du chargement des classes');
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+      } finally {
+        setLoadingClasses(false);
+      }
+    };
+
+    fetchClasses();
+  }, [user?.schoolId]);
+
+  // Fonction pour filtrer les classes selon la recherche
+  const getFilteredClasses = () => {
+    if (!classSearchTerm) return classes;
+    return classes.filter(c => 
+      c.name.toLowerCase().includes(classSearchTerm.toLowerCase()) ||
+      c.level.toLowerCase().includes(classSearchTerm.toLowerCase())
+    );
+  };
+
+  // Fonction pour vérifier si un parent a des enfants dans la classe sélectionnée
+  const hasChildrenInClass = useCallback((parent: User, selectedClassId: string): boolean => {
+    if (parent.role !== 'parent' || !parent.children) return false;
+    
+    // Chercher si un des enfants du parent est dans la classe sélectionnée
+    return users.some(user => 
+      parent.children?.includes(user._id) && 
+      user.role === 'student' &&
+      (user.classId?._id === selectedClassId || user.class === selectedClassId)
+    );
+  }, [users]);
+
+  // Filtrer les utilisateurs selon les critères de recherche
+  useEffect(() => {
+    let filtered = users.filter(u => 
+      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (roleFilter !== 'all') {
+      filtered = filtered.filter(u => u.role === roleFilter);
+    }
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(u => u.status === statusFilter);
+    }
+
+    if (classFilter !== 'all') {
+      filtered = filtered.filter(u => {
+        // Étudiants de la classe
+        if (u.role === 'student') {
+          return u.classId?._id === classFilter || u.class === classFilter;
+        }
+        // Parents dont les enfants sont dans la classe
+        else if (u.role === 'parent') {
+          return hasChildrenInClass(u, classFilter);
+        }
+        // Autres rôles : ne pas filtrer par classe
+        return true;
+      });
+    }
+
+    setFilteredUsers(filtered);
+  }, [users, searchTerm, roleFilter, statusFilter, classFilter, hasChildrenInClass]);
+
+  // Fermer le dropdown des classes quand on clique à l'extérieur
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.class-search-container')) {
+        setShowClassDropdown(false);
+      }
+    };
+
+    if (showClassDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showClassDropdown]);
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,28 +252,203 @@ export function UserManagement() {
 
   const handleEditUser = (user: User) => {
     setSelectedUser(user);
+    setEditForm({
+      name: user.name,
+      email: user.email,
+      phone: user.phone || '',
+      role: user.role,
+      status: user.status
+    });
     setIsEditUserOpen(true);
   };
 
   const handleDeleteUser = (user: User) => {
-    toast.success(`Utilisateur ${user.name} supprimé avec succès !`);
+    setUserToDelete(user);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handleSuspendUser = (user: User) => {
+    const newStatus = user.status === 'Suspendu' ? 'Actif' : 'Suspendu';
+    const action = user.status === 'Suspendu' ? 'réactiver' : 'suspendre';
+    
+    if (confirm(`Êtes-vous sûr de vouloir ${action} l'utilisateur ${user.name} ?`)) {
+      updateUserStatus(user._id, newStatus);
+    }
+  };
+
+  // Form states for editing
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: 'student' as 'student' | 'teacher' | 'parent' | 'admin',
+    status: 'Actif' as 'Actif' | 'Inactif' | 'Suspendu'
+  });
+
+  // Delete confirmation states
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
+  // Update user function
+  const updateUser = async (userId: string, userData: any) => {
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        toast.error('Session expirée, veuillez vous reconnecter');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userData)
+      });
+
+      if (response.ok) {
+        const updatedUser = await response.json();
+        setUsers(users.map(u => u._id === userId ? { ...u, ...updatedUser } : u));
+        toast.success('Utilisateur modifié avec succès !');
+        setIsEditUserOpen(false);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || 'Erreur lors de la modification de l\'utilisateur';
+        toast.error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur de connexion au serveur');
+    }
+  };
+
+  // Delete user function
+  const deleteUser = async (userId: string) => {
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        toast.error('Session expirée, veuillez vous reconnecter');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        setUsers(users.filter(u => u._id !== userId));
+        toast.success('Utilisateur supprimé avec succès !');
+        setIsDeleteConfirmOpen(false);
+        setUserToDelete(null);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || 'Erreur lors de la suppression de l\'utilisateur';
+        toast.error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur de connexion au serveur');
+    }
+  };
+
+  // Update user status function
+  const updateUserStatus = async (userId: string, newStatus: string) => {
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        toast.error('Session expirée, veuillez vous reconnecter');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (response.ok) {
+        setUsers(users.map(u => u._id === userId ? { ...u, status: newStatus as 'Actif' | 'Inactif' | 'Suspendu' } : u));
+        const action = newStatus === 'Suspendu' ? 'suspendu' : 'réactivé';
+        toast.success(`Utilisateur ${action} avec succès !`);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || 'Erreur lors de la modification du statut';
+        toast.error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur de connexion au serveur');
+    }
+  };
+
+  // Handle edit form submission
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Form validation
+    if (!editForm.name.trim()) {
+      toast.error('Le nom est requis');
+      return;
+    }
+    
+    if (!editForm.email.trim()) {
+      toast.error('L\'email est requis');
+      return;
+    }
+    
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editForm.email)) {
+      toast.error('Format d\'email invalide');
+      return;
+    }
+    
+    // Phone validation (optional but if provided, should be valid)
+    if (editForm.phone && editForm.phone.length < 8) {
+      toast.error('Le numéro de téléphone doit contenir au moins 8 chiffres');
+      return;
+    }
+    
+    if (selectedUser) {
+      updateUser(selectedUser._id, editForm);
+    }
   };
 
   const getRoleIcon = (role: string) => {
     switch (role) {
-      case 'Étudiant': return GraduationCap;
-      case 'Enseignant': return UserCheck;
-      case 'Administrateur': return Shield;
+      case 'student': return GraduationCap;
+      case 'teacher': return UserCheck;
+      case 'parent': return Users;
+      case 'admin': return Shield;
       default: return Users;
     }
   };
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'Étudiant': return 'bg-blue-100 text-blue-800';
-      case 'Enseignant': return 'bg-green-100 text-green-800';
-      case 'Administrateur': return 'bg-purple-100 text-purple-800';
+      case 'student': return 'bg-blue-100 text-blue-800';
+      case 'teacher': return 'bg-green-100 text-green-800';
+      case 'parent': return 'bg-orange-100 text-orange-800';
+      case 'admin': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'student': return 'Étudiant';
+      case 'teacher': return 'Enseignant';
+      case 'parent': return 'Parent';
+      case 'admin': return 'Administrateur';
+      default: return role;
     }
   };
 
@@ -153,19 +461,20 @@ export function UserManagement() {
     }
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-    
-    return matchesSearch && matchesRole && matchesStatus;
-  });
-
-  const studentCount = users.filter(u => u.role === 'Étudiant').length;
-  const teacherCount = users.filter(u => u.role === 'Enseignant').length;
-  const adminCount = users.filter(u => u.role === 'Administrateur').length;
+  const studentCount = users.filter(u => u.role === 'student').length;
+  const teacherCount = users.filter(u => u.role === 'teacher').length;
+  const parentCount = users.filter(u => u.role === 'parent').length;
+  const adminCount = users.filter(u => u.role === 'admin').length;
   const activeCount = users.filter(u => u.status === 'Actif').length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoaderCircle className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Chargement des utilisateurs...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -174,127 +483,69 @@ export function UserManagement() {
         <div>
           <h2 className="text-xl sm:text-2xl font-bold">Gestion des Utilisateurs</h2>
           <p className="text-sm sm:text-base text-muted-foreground">
-            Gérez tous les utilisateurs de votre établissement
+            Gérez tous les utilisateurs de {user?.school?.name || 'votre établissement'}
           </p>
         </div>
-        <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
-          <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto">
-              <UserPlus className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Ajouter Utilisateur</span>
-              <span className="sm:hidden">Ajouter</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-lg sm:text-xl">Créer un Nouvel Utilisateur</DialogTitle>
-              <DialogDescription className="text-sm">
-                Ajouter un nouvel étudiant, enseignant ou administrateur.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateUser} className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="user-name">Nom Complet</Label>
-                  <Input id="user-name" placeholder="Ex: Amadou Diallo" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="user-email">Email</Label>
-                  <Input id="user-email" type="email" placeholder="exemple@daara.sn" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="user-phone">Téléphone</Label>
-                  <Input id="user-phone" placeholder="+221 77 123 4567" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="user-role">Rôle</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un rôle" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="student">Étudiant</SelectItem>
-                      <SelectItem value="teacher">Enseignant</SelectItem>
-                      <SelectItem value="admin">Administrateur</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="user-class">Classe (si étudiant)</Label>
-                  <Input id="user-class" placeholder="Ex: 6ème A" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="user-subject">Matière (si enseignant)</Label>
-                  <Input id="user-subject" placeholder="Ex: Mathématiques" />
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                <Button type="submit" className="flex-1">Créer Utilisateur</Button>
-                <Button type="button" variant="outline" onClick={() => setIsCreateUserOpen(false)} className="flex-1">
-                  Annuler
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Total Utilisateurs</CardTitle>
-            <Users className="h-4 w-4 text-blue-600" />
+            <CardTitle className="text-sm font-medium">Total</CardTitle>
+            <Users className="h-4 w-4 text-gray-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{users.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Utilisateurs enregistrés
-            </p>
+            <div className="text-2xl font-bold">{users.length}</div>
+            <p className="text-xs text-muted-foreground">utilisateurs</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Étudiants</CardTitle>
-            <GraduationCap className="h-4 w-4 text-green-600" />
+            <CardTitle className="text-sm font-medium">Étudiants</CardTitle>
+            <GraduationCap className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{studentCount}</div>
-            <p className="text-xs text-muted-foreground">
-              Étudiants inscrits
-            </p>
+            <div className="text-2xl font-bold">{studentCount}</div>
+            <p className="text-xs text-muted-foreground">étudiants</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Enseignants</CardTitle>
-            <UserCheck className="h-4 w-4 text-purple-600" />
+            <CardTitle className="text-sm font-medium">Enseignants</CardTitle>
+            <UserCheck className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{teacherCount}</div>
-            <p className="text-xs text-muted-foreground">
-              Enseignants actifs
-            </p>
+            <div className="text-2xl font-bold">{teacherCount}</div>
+            <p className="text-xs text-muted-foreground">enseignants</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Actifs</CardTitle>
-            <Shield className="h-4 w-4 text-orange-600" />
+            <CardTitle className="text-sm font-medium">Parents</CardTitle>
+            <Users className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{activeCount}</div>
-            <p className="text-xs text-muted-foreground">
-              Utilisateurs actifs
-            </p>
+            <div className="text-2xl font-bold">{parentCount}</div>
+            <p className="text-xs text-muted-foreground">parents</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Actifs</CardTitle>
+            <UserCheck className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{activeCount}</div>
+            <p className="text-xs text-muted-foreground">actifs</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search and Filters */}
+      {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg sm:text-xl">Recherche et Filtres</CardTitle>
+          <CardTitle>Filtres et Recherche</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4">
@@ -311,26 +562,99 @@ export function UserManagement() {
             </div>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filtrer par rôle" />
+                <SelectValue placeholder="Tous les rôles" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les rôles</SelectItem>
-                <SelectItem value="Étudiant">Étudiants</SelectItem>
-                <SelectItem value="Enseignant">Enseignants</SelectItem>
-                <SelectItem value="Administrateur">Administrateurs</SelectItem>
+                <SelectItem value="student">Étudiants</SelectItem>
+                <SelectItem value="teacher">Enseignants</SelectItem>
+                <SelectItem value="parent">Parents</SelectItem>
+                <SelectItem value="admin">Administrateurs</SelectItem>
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filtrer par statut" />
+                <SelectValue placeholder="Tous les statuts" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les statuts</SelectItem>
-                <SelectItem value="Actif">Actifs</SelectItem>
-                <SelectItem value="Inactif">Inactifs</SelectItem>
-                <SelectItem value="Suspendu">Suspendus</SelectItem>
+                <SelectItem value="Actif">Actif</SelectItem>
+                <SelectItem value="Inactif">Inactif</SelectItem>
+                <SelectItem value="Suspendu">Suspendu</SelectItem>
               </SelectContent>
             </Select>
+            
+            {/* Recherche de classe avec autocomplétion */}
+            <div className="relative w-full sm:w-[200px] class-search-container">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher une classe..."
+                  value={selectedClass ? `${selectedClass.name} - ${selectedClass.level}` : classSearchTerm}
+                  onChange={(e) => {
+                    setClassSearchTerm(e.target.value);
+                    setSelectedClass(null);
+                    setClassFilter('all');
+                    setShowClassDropdown(true);
+                  }}
+                  onFocus={() => setShowClassDropdown(true)}
+                  className="pl-10 pr-8"
+                />
+                {selectedClass && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                    onClick={() => {
+                      setSelectedClass(null);
+                      setClassFilter('all');
+                      setClassSearchTerm('');
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+              
+              {/* Dropdown avec les résultats de recherche */}
+              {showClassDropdown && !selectedClass && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+                  <div className="p-2">
+                    <button
+                      className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded-md text-sm"
+                      onClick={() => {
+                        setClassFilter('all');
+                        setSelectedClass(null);
+                        setClassSearchTerm('');
+                        setShowClassDropdown(false);
+                      }}
+                    >
+                      Toutes les classes
+                    </button>
+                    {getFilteredClasses().map((classe) => (
+                      <button
+                        key={classe._id}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded-md text-sm"
+                        onClick={() => {
+                          setSelectedClass(classe);
+                          setClassFilter(classe._id);
+                          setClassSearchTerm('');
+                          setShowClassDropdown(false);
+                        }}
+                      >
+                        <div className="font-medium">{classe.name}</div>
+                        <div className="text-xs text-gray-500">{classe.level}</div>
+                      </button>
+                    ))}
+                    {getFilteredClasses().length === 0 && classSearchTerm && (
+                      <div className="px-3 py-2 text-sm text-gray-500">
+                        Aucune classe trouvée
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -338,167 +662,261 @@ export function UserManagement() {
       {/* Users List */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg sm:text-xl">Liste des Utilisateurs</CardTitle>
-          <CardDescription>
-            {filteredUsers.length} utilisateur(s) trouvé(s)
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <CardTitle>Utilisateurs ({filteredUsers.length})</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {filteredUsers.map((user) => {
-              const RoleIcon = getRoleIcon(user.role);
-              return (
-                <div key={user.id} className="border rounded-lg p-4 sm:p-6 hover:shadow-md transition-shadow">
-                  <div className="flex flex-col space-y-4 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
-                    <div className="flex-1">
-                      <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-3 mb-3">
-                        <div className="flex items-center space-x-2 sm:space-x-3">
-                          <RoleIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
-                          <h3 className="text-lg sm:text-xl font-semibold">{user.name}</h3>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Badge className={getRoleColor(user.role)}>
-                            {user.role}
-                          </Badge>
-                          <Badge variant="outline" className={getStatusColor(user.status)}>
-                            {user.status}
-                          </Badge>
-                        </div>
+            {filteredUsers.length > 0 ? (
+              filteredUsers.map((userItem) => {
+                const RoleIcon = getRoleIcon(userItem.role);
+                return (
+                  <div key={userItem._id} className="flex items-center justify-between p-4 border rounded-lg hover:shadow-md transition-shadow">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                        <RoleIcon className="w-5 h-5 text-gray-600" />
                       </div>
-                      
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-sm text-muted-foreground">
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <Mail className="h-4 w-4 flex-shrink-0" />
-                            <span className="break-all">{user.email}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Phone className="h-4 w-4 flex-shrink-0" />
-                            <span>{user.phone}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          {user.class && (
-                            <div className="flex items-center space-x-2">
-                              <BookOpen className="h-4 w-4 flex-shrink-0" />
-                              <span>Classe: {user.class}</span>
-                            </div>
+                      <div className="flex-1">
+                        <h3 className="font-medium">{userItem.name}</h3>
+                        <p className="text-sm text-muted-foreground">{userItem.email}</p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Badge className={getRoleColor(userItem.role)}>
+                            {getRoleLabel(userItem.role)}
+                          </Badge>
+                          <Badge className={getStatusColor(userItem.status)}>
+                            {userItem.status}
+                          </Badge>
+                          {userItem.role === 'student' && (userItem.classId || userItem.class) && (
+                            <Badge className="bg-indigo-100 text-indigo-800">
+                              <BookOpen className="w-3 h-3 mr-1" />
+                              {userItem.classId?.name || userItem.class}
+                              {userItem.classId?.level && ` - ${userItem.classId.level}`}
+                            </Badge>
                           )}
-                          {user.subject && (
-                            <div className="flex items-center space-x-2">
-                              <GraduationCap className="h-4 w-4 flex-shrink-0" />
-                              <span>Matière: {user.subject}</span>
-                            </div>
-                          )}
-                          <div className="flex items-center space-x-2">
-                            <Calendar className="h-4 w-4 flex-shrink-0" />
-                            <span>Dernière connexion: {new Date(user.lastLogin).toLocaleDateString('fr-FR')}</span>
-                          </div>
                         </div>
                       </div>
                     </div>
-                    
-                    <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-                      <Button 
-                        variant="outline" 
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
                         size="sm"
-                        onClick={() => handleViewDetails(user)}
-                        className="w-full sm:w-auto"
+                        onClick={() => handleViewDetails(userItem)}
                       >
-                        <Eye className="mr-2 h-4 w-4" />
-                        <span className="hidden sm:inline">Détails</span>
-                        <span className="sm:hidden">Voir</span>
+                        <Eye className="w-4 h-4" />
                       </Button>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="ghost"
                         size="sm"
-                        onClick={() => handleEditUser(user)}
-                        className="w-full sm:w-auto"
+                        onClick={() => handleEditUser(userItem)}
                       >
-                        <Edit className="mr-2 h-4 w-4" />
-                        Modifier
+                        <Edit className="w-4 h-4" />
                       </Button>
-                      <Button 
-                        variant="destructive" 
+                      <Button
+                        variant="ghost"
                         size="sm"
-                        onClick={() => handleDeleteUser(user)}
-                        className="w-full sm:w-auto"
+                        onClick={() => handleSuspendUser(userItem)}
+                        className={userItem.status === 'Suspendu' ? 'text-green-600' : 'text-orange-600'}
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        <span className="hidden sm:inline">Supprimer</span>
-                        <span className="sm:hidden">Delete</span>
+                        {userItem.status === 'Suspendu' ? (
+                          <UserCheck className="w-4 h-4" />
+                        ) : (
+                          <UserX className="w-4 h-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteUser(userItem)}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600" />
                       </Button>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                <p>Aucun utilisateur trouvé</p>
+                <p className="text-sm">Ajustez vos critères de recherche</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* View Details Dialog */}
-      <Dialog open={isViewDetailsOpen} onOpenChange={setIsViewDetailsOpen}>
-        <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">Détails de l&apos;Utilisateur</DialogTitle>
-            <DialogDescription className="text-sm">
-              Informations complètes sur l&apos;utilisateur sélectionné
-            </DialogDescription>
-          </DialogHeader>
-          {selectedUser && (
+      {/* User Details Dialog */}
+      {selectedUser && (
+        <Dialog open={isViewDetailsOpen} onOpenChange={setIsViewDetailsOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Détails de l&apos;utilisateur</DialogTitle>
+              <DialogDescription>
+                Informations complètes de {selectedUser.name}
+              </DialogDescription>
+            </DialogHeader>
             <div className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Nom Complet</Label>
-                  <p className="font-medium">{selectedUser.name}</p>
+                  <Label>Nom</Label>
+                  <p className="text-sm font-medium">{selectedUser.name}</p>
                 </div>
                 <div>
                   <Label>Email</Label>
-                  <p className="font-medium">{selectedUser.email}</p>
+                  <p className="text-sm">{selectedUser.email}</p>
                 </div>
                 <div>
                   <Label>Téléphone</Label>
-                  <p className="font-medium">{selectedUser.phone}</p>
+                  <p className="text-sm">{selectedUser.phone || 'Non renseigné'}</p>
                 </div>
                 <div>
                   <Label>Rôle</Label>
                   <Badge className={getRoleColor(selectedUser.role)}>
-                    {selectedUser.role}
+                    {getRoleLabel(selectedUser.role)}
                   </Badge>
                 </div>
-                {selectedUser.class && (
-                  <div>
-                    <Label>Classe</Label>
-                    <p className="font-medium">{selectedUser.class}</p>
-                  </div>
-                )}
-                {selectedUser.subject && (
-                  <div>
-                    <Label>Matière Enseignée</Label>
-                    <p className="font-medium">{selectedUser.subject}</p>
-                  </div>
-                )}
                 <div>
                   <Label>Statut</Label>
-                  <Badge variant="outline" className={getStatusColor(selectedUser.status)}>
+                  <Badge className={getStatusColor(selectedUser.status)}>
                     {selectedUser.status}
                   </Badge>
                 </div>
                 <div>
-                  <Label>Date d&apos;Inscription</Label>
-                  <p className="font-medium">{new Date(selectedUser.createdAt).toLocaleDateString('fr-FR')}</p>
+                  <Label>École</Label>
+                  <p className="text-sm">{selectedUser.schoolId.name}</p>
                 </div>
-                <div className="lg:col-span-2">
-                  <Label>Dernière Connexion</Label>
-                  <p className="font-medium">{new Date(selectedUser.lastLogin).toLocaleDateString('fr-FR')}</p>
-                </div>
+                {selectedUser.role === 'student' && (selectedUser.classId || selectedUser.class) && (
+                  <div>
+                    <Label>Classe</Label>
+                    <Badge className="bg-indigo-100 text-indigo-800">
+                      <BookOpen className="w-3 h-3 mr-1" />
+                      {selectedUser.classId?.name || selectedUser.class}
+                      {selectedUser.classId?.level && ` - ${selectedUser.classId.level}`}
+                    </Badge>
+                  </div>
+                )}
               </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Edit User Dialog */}
+      {selectedUser && (
+        <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Modifier l&apos;utilisateur</DialogTitle>
+              <DialogDescription>
+                Modifier les informations de {selectedUser.name}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div className="grid gap-4">
+                <div>
+                  <Label htmlFor="edit-name">Nom complet</Label>
+                  <Input
+                    id="edit-name"
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-phone">Téléphone</Label>
+                  <Input
+                    id="edit-phone"
+                    type="tel"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-role">Rôle</Label>
+                  <Select value={editForm.role} onValueChange={(value: any) => setEditForm({ ...editForm, role: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="student">Étudiant</SelectItem>
+                      <SelectItem value="teacher">Enseignant</SelectItem>
+                      <SelectItem value="parent">Parent</SelectItem>
+                      <SelectItem value="admin">Administrateur</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="edit-status">Statut</Label>
+                  <Select value={editForm.status} onValueChange={(value: any) => setEditForm({ ...editForm, status: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Actif">Actif</SelectItem>
+                      <SelectItem value="Inactif">Inactif</SelectItem>
+                      <SelectItem value="Suspendu">Suspendu</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditUserOpen(false)}
+                >
+                  Annuler
+                </Button>
+                <Button type="submit">
+                  Enregistrer les modifications
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {userToDelete && (
+        <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+              <AlertDialogDescription>
+                Êtes-vous sûr de vouloir supprimer définitivement l&apos;utilisateur{' '}
+                <strong>{userToDelete.name}</strong> ? Cette action est irréversible et supprimera
+                toutes les données associées.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setIsDeleteConfirmOpen(false);
+                setUserToDelete(null);
+              }}>
+                Annuler
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteUser(userToDelete._id)}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Supprimer définitivement
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
