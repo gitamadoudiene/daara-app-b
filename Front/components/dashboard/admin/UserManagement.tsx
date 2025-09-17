@@ -83,42 +83,64 @@ export function UserManagement() {
   const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
   const [showClassDropdown, setShowClassDropdown] = useState(false);
 
+  // États pour le formulaire de création
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: 'student' as 'student' | 'teacher' | 'parent' | 'admin',
+    gender: '' as '' | 'Masculin' | 'Féminin',
+    status: 'Actif' as 'Actif' | 'Inactif' | 'Suspendu',
+    classId: '',
+    subjects: [] as string[],
+    qualification: '',
+    experience: '',
+    profession: '',
+    emergencyPhone: '',
+    relation: '',
+    address: ''
+  });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const [createSuccess, setCreateSuccess] = useState('');
+
+  // Fonction pour charger les utilisateurs
+  const fetchUsers = useCallback(async () => {
+    if (!user?.schoolId) return;
+    
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('daara_token');
+      const response = await fetch('http://localhost:5000/api/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const allUsers = await response.json();
+        // Filtrer uniquement les utilisateurs de l'école de l'admin
+        const schoolUsers = allUsers.filter((u: User) => 
+          u.schoolId && u.schoolId._id === user.schoolId
+        );
+        setUsers(schoolUsers);
+        setFilteredUsers(schoolUsers);
+      } else {
+        toast.error('Erreur lors du chargement des utilisateurs');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors du chargement des utilisateurs');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.schoolId]);
+
   // Charger les utilisateurs de l'école de l'admin
   useEffect(() => {
-    const fetchUsers = async () => {
-      if (!user?.schoolId) return;
-      
-      try {
-        setLoading(true);
-        const token = localStorage.getItem('daara_token');
-        const response = await fetch('http://localhost:5000/api/users', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          const allUsers = await response.json();
-          // Filtrer uniquement les utilisateurs de l'école de l'admin
-          const schoolUsers = allUsers.filter((u: User) => 
-            u.schoolId && u.schoolId._id === user.schoolId
-          );
-          setUsers(schoolUsers);
-          setFilteredUsers(schoolUsers);
-        } else {
-          toast.error('Erreur lors du chargement des utilisateurs');
-        }
-      } catch (error) {
-        console.error('Erreur:', error);
-        toast.error('Erreur lors du chargement des utilisateurs');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchUsers();
-  }, [user?.schoolId]);
+  }, [fetchUsers]);
 
   // Charger les classes de l'école de l'admin
   useEffect(() => {
@@ -239,10 +261,136 @@ export function UserManagement() {
     };
   }, [showClassDropdown]);
 
-  const handleCreateUser = (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success('Utilisateur créé avec succès !');
-    setIsCreateUserOpen(false);
+    setCreateError('');
+    setCreateSuccess('');
+    setCreateLoading(true);
+
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        throw new Error('Token d\'authentification manquant');
+      }
+
+      // Validation des champs requis
+      if (!createForm.name.trim()) {
+        throw new Error('Le nom est obligatoire');
+      }
+      if (!createForm.email.trim()) {
+        throw new Error('L\'email est obligatoire');
+      }
+      if (!createForm.phone.trim()) {
+        throw new Error('Le téléphone est obligatoire');
+      }
+
+      // Validation email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(createForm.email)) {
+        throw new Error('Format d\'email invalide');
+      }
+
+      // Préparer les données selon le rôle
+      const userData: any = {
+        name: createForm.name.trim(),
+        email: createForm.email.trim().toLowerCase(),
+        phone: createForm.phone.trim(),
+        role: createForm.role,
+        status: createForm.status,
+        schoolId: user?.schoolId
+      };
+
+      // Ajouter les champs spécifiques selon le rôle
+      if (createForm.role === 'student') {
+        if (!createForm.classId) {
+          throw new Error('La classe est obligatoire pour un étudiant');
+        }
+        userData.classId = createForm.classId;
+        userData.gender = createForm.gender;
+      } else if (createForm.role === 'teacher') {
+        userData.subjects = createForm.subjects;
+        userData.qualification = createForm.qualification;
+        userData.experience = createForm.experience;
+      } else if (createForm.role === 'parent') {
+        userData.gender = createForm.gender;
+        userData.profession = createForm.profession;
+        userData.emergencyPhone = createForm.emergencyPhone;
+        userData.relation = createForm.relation;
+        userData.address = createForm.address;
+      }
+
+      // Déterminer l'endpoint selon le rôle
+      let endpoint = '';
+      switch (createForm.role) {
+        case 'student':
+          endpoint = '/api/users/students';
+          break;
+        case 'teacher':
+          endpoint = '/api/teachers';
+          break;
+        case 'parent':
+          endpoint = '/api/users/parents';
+          break;
+        case 'admin':
+          endpoint = '/api/admins';
+          break;
+        default:
+          throw new Error('Rôle non supporté');
+      }
+
+      const response = await fetch(`http://localhost:5000${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(userData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Erreur lors de la création');
+      }
+
+      // Succès
+      const tempPassword = data.tempPassword || 'password123';
+      setCreateSuccess(`${createForm.role === 'student' ? 'Étudiant' : 
+                        createForm.role === 'teacher' ? 'Enseignant' : 
+                        createForm.role === 'parent' ? 'Parent' : 'Administrateur'} créé avec succès ! Mot de passe temporaire: ${tempPassword}`);
+
+      // Réinitialiser le formulaire
+      setCreateForm({
+        name: '',
+        email: '',
+        phone: '',
+        role: 'student',
+        gender: '',
+        status: 'Actif',
+        classId: '',
+        subjects: [],
+        qualification: '',
+        experience: '',
+        profession: '',
+        emergencyPhone: '',
+        relation: '',
+        address: ''
+      });
+
+      // Rafraîchir la liste
+      await fetchUsers();
+
+      // Fermer le modal après un délai
+      setTimeout(() => {
+        setIsCreateUserOpen(false);
+        setCreateSuccess('');
+      }, 5000);
+
+    } catch (error: any) {
+      setCreateError(error.message);
+    } finally {
+      setCreateLoading(false);
+    }
   };
 
   const handleViewDetails = (user: User) => {
@@ -485,6 +633,12 @@ export function UserManagement() {
           <p className="text-sm sm:text-base text-muted-foreground">
             Gérez tous les utilisateurs de {user?.school?.name || 'votre établissement'}
           </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button onClick={() => setIsCreateUserOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+            <UserPlus className="w-4 h-4 mr-2" />
+            Créer Utilisateur
+          </Button>
         </div>
       </div>
 
@@ -917,6 +1071,230 @@ export function UserManagement() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {/* Modal de création d'utilisateur */}
+      <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Créer un nouvel utilisateur</DialogTitle>
+            <DialogDescription>
+              Remplissez les informations pour créer un nouveau compte utilisateur.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateUser} className="space-y-4">
+            {/* Informations de base */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-name">Nom complet *</Label>
+                <Input
+                  id="create-name"
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Ex: Jean Dupont"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-email">Email *</Label>
+                <Input
+                  id="create-email"
+                  type="email"
+                  value={createForm.email}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="exemple@email.com"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-phone">Téléphone *</Label>
+                <Input
+                  id="create-phone"
+                  value={createForm.phone}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+221 XX XXX XX XX"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-role">Rôle *</Label>
+                <Select value={createForm.role} onValueChange={(value: any) => setCreateForm(prev => ({ ...prev, role: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un rôle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="student">Étudiant</SelectItem>
+                    <SelectItem value="teacher">Enseignant</SelectItem>
+                    <SelectItem value="parent">Parent</SelectItem>
+                    <SelectItem value="admin">Administrateur</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Champs spécifiques selon le rôle */}
+            {createForm.role === 'student' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="create-gender">Genre</Label>
+                    <Select value={createForm.gender} onValueChange={(value) => setCreateForm(prev => ({ ...prev, gender: value as "Masculin" | "Féminin" | "" }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Masculin">Masculin</SelectItem>
+                        <SelectItem value="Féminin">Féminin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="create-class">Classe *</Label>
+                    <Select value={createForm.classId} onValueChange={(value) => setCreateForm(prev => ({ ...prev, classId: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner une classe" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {classes.map((classe) => (
+                          <SelectItem key={classe._id} value={classe._id}>
+                            {classe.name} - {classe.level}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {createForm.role === 'teacher' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="create-qualification">Qualification</Label>
+                    <Input
+                      id="create-qualification"
+                      value={createForm.qualification}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, qualification: e.target.value }))}
+                      placeholder="Ex: Professeur certifié"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="create-experience">Expérience</Label>
+                    <Input
+                      id="create-experience"
+                      value={createForm.experience}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, experience: e.target.value }))}
+                      placeholder="Ex: 5 ans d'enseignement"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {createForm.role === 'parent' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="create-gender">Genre</Label>
+                    <Select value={createForm.gender} onValueChange={(value) => setCreateForm(prev => ({ ...prev, gender: value as "Masculin" | "Féminin" | "" }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Masculin">Masculin</SelectItem>
+                        <SelectItem value="Féminin">Féminin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="create-profession">Profession</Label>
+                    <Input
+                      id="create-profession"
+                      value={createForm.profession}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, profession: e.target.value }))}
+                      placeholder="Ex: Ingénieur"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="create-emergency-phone">Téléphone d&apos;urgence</Label>
+                    <Input
+                      id="create-emergency-phone"
+                      value={createForm.emergencyPhone}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, emergencyPhone: e.target.value }))}
+                      placeholder="+221 XX XXX XX XX"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="create-relation">Relation</Label>
+                    <Input
+                      id="create-relation"
+                      value={createForm.relation}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, relation: e.target.value }))}
+                      placeholder="Ex: Père, Mère, Tuteur"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="create-address">Adresse</Label>
+                  <Input
+                    id="create-address"
+                    value={createForm.address}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, address: e.target.value }))}
+                    placeholder="Adresse complète"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Messages d'erreur et de succès */}
+            {createError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600">{createError}</p>
+              </div>
+            )}
+
+            {createSuccess && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-sm text-green-600">{createSuccess}</p>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateUserOpen(false)}
+                disabled={createLoading}
+              >
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                disabled={createLoading}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {createLoading ? (
+                  <>
+                    <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
+                    Création...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Créer l&apos;utilisateur
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

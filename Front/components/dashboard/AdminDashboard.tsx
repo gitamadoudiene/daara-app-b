@@ -573,7 +573,7 @@ export function AdminDashboard() {
               </p>
             </div>
             <div className="grid gap-6">
-              <ClassAssignment />
+              <SchoolStructure />
             </div>
           </div>
         );

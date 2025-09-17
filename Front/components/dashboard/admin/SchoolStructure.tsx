@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,11 @@ import {
   GraduationCap,
   UserCheck,
   Calendar,
-  Clock
+  Clock,
+  ArrowRight,
+  ArrowLeft,
+  UserPlus,
+  UserMinus
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -48,6 +52,27 @@ interface Subject {
   teacher: string;
   classes: string[];
   status: 'Actif' | 'Inactif';
+}
+
+interface Student {
+  id: string;
+  name: string;
+  email: string;
+  classId?: string;
+  className?: string;
+  level: string;
+  status: 'Actif' | 'Inactif' | 'Suspendu';
+  enrollmentDate: string;
+}
+
+interface ClassAssignment {
+  classId: string;
+  className: string;
+  level: string;
+  capacity: number;
+  enrolled: number;
+  students: Student[];
+  availableSpots: number;
 }
 
 export function SchoolStructure() {
@@ -149,13 +174,80 @@ export function SchoolStructure() {
     }
   ]);
 
-  const [activeTab, setActiveTab] = useState('classes');
+  const [activeTab, setActiveTab] = useState('assignments');
   const [isCreateClassOpen, setIsCreateClassOpen] = useState(false);
   const [isCreateSubjectOpen, setIsCreateSubjectOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // États pour les affectations
+  const [unassignedStudents, setUnassignedStudents] = useState<Student[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [selectedClassForAssignment, setSelectedClassForAssignment] = useState<string>('');
+  const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
+
+  // Récupérer les étudiants non assignés
+  const fetchUnassignedStudents = async () => {
+    try {
+      console.log('🔍 fetchUnassignedStudents: Début de la récupération');
+      
+      const token = localStorage.getItem('daara_token');
+      console.log('🔑 Token:', token ? `${token.substring(0, 20)}...` : 'AUCUN TOKEN');
+      
+      if (!token) {
+        console.warn('❌ Aucun token trouvé');
+        return;
+      }
+
+      const userInfo = JSON.parse(localStorage.getItem('daara_user') || '{}');
+      console.log('👤 UserInfo:', userInfo);
+      
+      const schoolId = userInfo.schoolId;
+      console.log('🏫 School ID:', schoolId);
+
+      if (!schoolId) {
+        console.warn('❌ Aucun schoolId trouvé');
+        return;
+      }
+
+      const url = `/api/users/students/unassigned/${schoolId}`;
+      console.log('🌐 URL API:', url);
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response ok:', response.ok);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Données reçues:', data);
+        console.log('📊 Nombre d\'étudiants:', data.length);
+        
+        const mappedStudents = data.map((student: any) => ({
+          id: student._id,
+          name: student.name,
+          email: student.email,
+          level: student.level || 'Non défini',
+          status: 'Actif',
+          enrollmentDate: new Date(student.createdAt).toLocaleDateString('fr-FR')
+        }));
+        
+        console.log('✅ Étudiants mappés:', mappedStudents);
+        setUnassignedStudents(mappedStudents);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Erreur API:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des étudiants non assignés:', error);
+    }
+  };
 
   const handleCreateClass = (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,6 +260,127 @@ export function SchoolStructure() {
     toast.success('Matière créée avec succès !');
     setIsCreateSubjectOpen(false);
   };
+
+  // Fonctions de gestion des affectations
+  const handleStudentSelection = (studentId: string) => {
+    setSelectedStudents(prev => 
+      prev.includes(studentId) 
+        ? prev.filter(id => id !== studentId)
+        : [...prev, studentId]
+    );
+  };
+
+  const handleAssignStudents = async () => {
+    if (selectedStudents.length === 0 || !selectedClassForAssignment) {
+      toast.error('Veuillez sélectionner des élèves et une classe');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        toast.error('Token d\'authentification manquant');
+        return;
+      }
+
+      const response = await fetch('/api/users/students/assign', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          studentIds: selectedStudents,
+          classId: selectedClassForAssignment
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Mettre à jour l'état local
+        setUnassignedStudents(prev => 
+          prev.filter(student => !selectedStudents.includes(student.id))
+        );
+
+        // Mettre à jour le nombre d'inscrits dans les classes
+        setClasses(prev => prev.map(c => 
+          c.id === selectedClassForAssignment 
+            ? { ...c, enrolled: c.enrolled + selectedStudents.length }
+            : c
+        ));
+
+        setSelectedStudents([]);
+        setSelectedClassForAssignment('');
+        setIsAssignmentModalOpen(false);
+        
+        toast.success(`${selectedStudents.length} élève(s) affecté(s) avec succès`);
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Erreur lors de l\'affectation');
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'affectation:', error);
+      toast.error('Erreur lors de l\'affectation des élèves');
+    }
+  };
+
+  // Retirer un élève d'une classe
+  const handleRemoveStudentFromClass = async (studentId: string, classId: string) => {
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        toast.error('Token d\'authentification manquant');
+        return;
+      }
+
+      const response = await fetch(`/api/users/students/${studentId}/class`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ classId })
+      });
+
+      if (response.ok) {
+        // Mettre à jour le nombre d'inscrits dans les classes
+        setClasses(prev => prev.map(c => 
+          c.id === classId 
+            ? { ...c, enrolled: Math.max(0, c.enrolled - 1) }
+            : c
+        ));
+
+        // Recharger les étudiants non assignés
+        fetchUnassignedStudents();
+        
+        toast.success('Élève retiré de la classe avec succès');
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Erreur lors du retrait');
+      }
+    } catch (error) {
+      console.error('Erreur lors du retrait:', error);
+      toast.error('Erreur lors du retrait de l\'élève');
+    }
+  };
+
+  const getAvailableClasses = () => {
+    return classes.filter(c => c.enrolled < c.capacity);
+  };
+
+  // Effect pour charger les étudiants non assignés au montage du composant
+  useEffect(() => {
+    console.log('🚀 useEffect: Composant monté, appel de fetchUnassignedStudents');
+    
+    // Vérifier le localStorage
+    const token = localStorage.getItem('daara_token');
+    const userInfo = localStorage.getItem('daara_user');
+    console.log('📱 localStorage token:', token ? 'PRÉSENT' : 'ABSENT');
+    console.log('📱 localStorage userInfo:', userInfo ? JSON.parse(userInfo) : 'ABSENT');
+    
+    fetchUnassignedStudents();
+  }, []);
 
   const handleViewDetails = (item: Class | Subject) => {
     if ('capacity' in item) {
@@ -402,9 +615,10 @@ export function SchoolStructure() {
         
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="classes" className="text-xs sm:text-sm">Classes</TabsTrigger>
               <TabsTrigger value="subjects" className="text-xs sm:text-sm">Matières</TabsTrigger>
+              <TabsTrigger value="assignments" className="text-xs sm:text-sm">Affectations</TabsTrigger>
             </TabsList>
             
             <TabsContent value="classes" className="space-y-4">
@@ -551,6 +765,122 @@ export function SchoolStructure() {
                 ))}
               </div>
             </TabsContent>
+
+            <TabsContent value="assignments" className="space-y-4">
+              {/* En-tête avec statistiques */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Élèves non assignés</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-orange-600">{unassignedStudents.length}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Classes disponibles</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">{getAvailableClasses().length}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Places disponibles</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {classes.reduce((total, c) => total + (c.capacity - c.enrolled), 0)}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Bouton d'affectation */}
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <Button
+                  onClick={() => setIsAssignmentModalOpen(true)}
+                  disabled={unassignedStudents.length === 0}
+                  className="flex items-center space-x-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Affecter des élèves</span>
+                </Button>
+              </div>
+
+              {/* Vue d'ensemble des classes avec leurs élèves */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold mb-4">Classes et leurs élèves</h3>
+                {classes.map((classItem) => (
+                  <Card key={classItem.id} className="p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <BookOpen className="h-5 w-5 text-blue-600" />
+                        <div>
+                          <h4 className="font-semibold">{classItem.name}</h4>
+                          <p className="text-sm text-muted-foreground">{classItem.level}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <Badge variant={classItem.status === 'Complet' ? 'destructive' : 'secondary'}>
+                          {classItem.enrolled}/{classItem.capacity} places
+                        </Badge>
+                        <Badge className={classItem.status === 'Complet' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}>
+                          {classItem.status}
+                        </Badge>
+                      </div>
+                    </div>
+                    
+                    {/* Barre de progression de capacité */}
+                    <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          (classItem.enrolled / classItem.capacity) >= 1 ? 'bg-red-500' :
+                          (classItem.enrolled / classItem.capacity) >= 0.8 ? 'bg-orange-500' : 'bg-green-500'
+                        }`}
+                        style={{ width: `${Math.min((classItem.enrolled / classItem.capacity) * 100, 100)}%` }}
+                      ></div>
+                    </div>
+
+                    <div className="text-sm text-muted-foreground">
+                      Enseignant: {classItem.teacher} • Salle: {classItem.room}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Liste des élèves non assignés */}
+              {unassignedStudents.length > 0 && (
+                <Card className="p-4">
+                  <CardHeader className="px-0 pt-0">
+                    <CardTitle className="text-lg flex items-center space-x-2">
+                      <Users className="h-5 w-5 text-orange-600" />
+                      <span>Élèves non assignés ({unassignedStudents.length})</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <div className="space-y-2">
+                    {unassignedStudents.map((student) => (
+                      <div key={student.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <GraduationCap className="h-4 w-4 text-gray-600" />
+                          <div>
+                            <div className="font-medium">{student.name}</div>
+                            <div className="text-sm text-muted-foreground">{student.email} • {student.level}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge className="bg-orange-100 text-orange-800">{student.status}</Badge>
+                          <div className="text-xs text-muted-foreground">
+                            Inscrit le {new Date(student.enrollmentDate).toLocaleDateString('fr-FR')}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
@@ -651,6 +981,145 @@ export function SchoolStructure() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal d'affectation des élèves */}
+      <Dialog open={isAssignmentModalOpen} onOpenChange={setIsAssignmentModalOpen}>
+        <DialogContent className="mx-4 w-[95vw] max-w-4xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg sm:text-xl">
+              Affecter des élèves à une classe
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              Sélectionnez les élèves à affecter et choisissez une classe de destination
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
+            {/* Liste des élèves non assignés */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
+                <Users className="h-5 w-5" />
+                <span>Élèves disponibles ({unassignedStudents.length})</span>
+              </h3>
+              <div className="space-y-2 max-h-96 overflow-y-auto border rounded-lg p-3">
+                {unassignedStudents.map((student) => (
+                  <div 
+                    key={student.id} 
+                    className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                      selectedStudents.includes(student.id) 
+                        ? 'bg-blue-50 border-blue-200 border' 
+                        : 'hover:bg-gray-50 border border-transparent'
+                    }`}
+                    onClick={() => handleStudentSelection(student.id)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedStudents.includes(student.id)}
+                      onChange={() => handleStudentSelection(student.id)}
+                      className="rounded"
+                    />
+                    <GraduationCap className="h-4 w-4 text-gray-600" />
+                    <div className="flex-1">
+                      <div className="font-medium">{student.name}</div>
+                      <div className="text-sm text-muted-foreground">{student.level} • {student.email}</div>
+                    </div>
+                    <Badge className="bg-orange-100 text-orange-800">{student.status}</Badge>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 text-sm text-muted-foreground">
+                {selectedStudents.length} élève(s) sélectionné(s)
+              </div>
+            </div>
+
+            {/* Sélection de classe */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
+                <BookOpen className="h-5 w-5" />
+                <span>Classes disponibles</span>
+              </h3>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {getAvailableClasses().map((classItem) => (
+                  <div 
+                    key={classItem.id}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                      selectedClassForAssignment === classItem.id
+                        ? 'bg-blue-50 border-blue-200'
+                        : 'hover:bg-gray-50'
+                    }`}
+                    onClick={() => setSelectedClassForAssignment(classItem.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="radio"
+                          name="selectedClass"
+                          checked={selectedClassForAssignment === classItem.id}
+                          onChange={() => setSelectedClassForAssignment(classItem.id)}
+                        />
+                        <BookOpen className="h-5 w-5 text-blue-600" />
+                        <div>
+                          <div className="font-medium">{classItem.name}</div>
+                          <div className="text-sm text-muted-foreground">{classItem.level}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="secondary">
+                          {classItem.enrolled}/{classItem.capacity}
+                        </Badge>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {classItem.capacity - classItem.enrolled} places libres
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-2">
+                      <div className="w-full bg-gray-200 rounded-full h-1">
+                        <div 
+                          className="bg-blue-500 h-1 rounded-full transition-all"
+                          style={{ width: `${(classItem.enrolled / classItem.capacity) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-xs text-muted-foreground mt-2">
+                      Enseignant: {classItem.teacher} • Salle: {classItem.room}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center mt-6 pt-4 border-t">
+            <div className="text-sm text-muted-foreground">
+              {selectedStudents.length > 0 && selectedClassForAssignment && (
+                <>Prêt à affecter {selectedStudents.length} élève(s)</>
+              )}
+            </div>
+            <div className="flex space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsAssignmentModalOpen(false);
+                  setSelectedStudents([]);
+                  setSelectedClassForAssignment('');
+                }}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleAssignStudents}
+                disabled={selectedStudents.length === 0 || !selectedClassForAssignment}
+                className="flex items-center space-x-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Affecter les élèves</span>
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

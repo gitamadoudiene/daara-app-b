@@ -7,7 +7,8 @@ const {
   getClassById,
   updateClass,
   deleteClass,
-  getAllSubjects
+  getAllSubjects,
+  getClassStats
 } = require('../controllers/classController');
 const authMiddleware = require('../middleware/auth');
 // Commenté pour permettre l'accès aux classes sans restrictions de rôle
@@ -21,6 +22,7 @@ router.post('/', createClass);
 router.get('/', getAllClasses);
 router.get('/school/:schoolId', getClassesBySchool); // Pas de restriction de rôle ici
 router.get('/subjects', getAllSubjects);
+router.get('/:classId/stats', getClassStats); // Nouvelle route pour les statistiques
 router.get('/:id', getClassById);
 router.put('/:id', updateClass);
 router.delete('/:id', deleteClass);

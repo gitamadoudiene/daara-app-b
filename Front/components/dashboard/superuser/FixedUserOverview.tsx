@@ -165,7 +165,7 @@ export function UserOverview() {
         // Convertir en format User
         const formattedUsers: User[] = userData.map((user: any) => ({
           id: user._id,
-          name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email?.split('@')[0] || 'Sans nom',
+          name: user.name || user.email?.split('@')[0] || 'Sans nom',
           email: user.email || '',
           phone: user.phone || 'Non renseigné',
           role: mapRole(user.role),

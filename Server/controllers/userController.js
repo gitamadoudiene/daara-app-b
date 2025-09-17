@@ -256,10 +256,243 @@ exports.getAllStudents = async (req, res) => {
   try {
     const students = await User.find({ role: 'student' })
       .populate('schoolId', 'name')
+      .populate('classId', 'name level')
       .select('-password');
     res.json(students);
   } catch (err) {
     console.error('Erreur lors de la récupération des étudiants:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Récupérer tous les étudiants non assignés à une classe
+exports.getUnassignedStudents = async (req, res) => {
+  try {
+    const { schoolId } = req.query;
+    
+    let filter = { 
+      role: 'student',
+      $or: [
+        { classId: { $exists: false } },
+        { classId: null }
+      ]
+    };
+
+    if (schoolId) {
+      filter.schoolId = schoolId;
+    }
+
+    const unassignedStudents = await User.find(filter)
+      .populate('schoolId', 'name')
+      .select('-password')
+      .sort({ name: 1 });
+
+    res.json(unassignedStudents);
+  } catch (err) {
+    console.error('Erreur lors de la récupération des étudiants non assignés:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Affecter des étudiants à une classe
+exports.assignStudentsToClass = async (req, res) => {
+  try {
+    const { studentIds, classId } = req.body;
+    
+    // Validation des paramètres
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ message: 'Liste d\'étudiants requise' });
+    }
+    
+    if (!classId || !mongoose.Types.ObjectId.isValid(classId)) {
+      return res.status(400).json({ message: 'ID de classe invalide' });
+    }
+
+    // Vérifier que la classe existe
+    const Class = require('../models/Class');
+    const targetClass = await Class.findById(classId);
+    if (!targetClass) {
+      return res.status(404).json({ message: 'Classe introuvable' });
+    }
+
+    // Compter les étudiants actuels dans la classe
+    const currentEnrollment = await User.countDocuments({ 
+      classId: classId, 
+      role: 'student' 
+    });
+
+    // Vérifier la capacité
+    if (currentEnrollment + studentIds.length > targetClass.capacity) {
+      return res.status(400).json({ 
+        message: `Capacité insuffisante. Places disponibles: ${targetClass.capacity - currentEnrollment}` 
+      });
+    }
+
+    // Vérifier que tous les étudiants existent et ne sont pas déjà assignés
+    const students = await User.find({
+      _id: { $in: studentIds },
+      role: 'student'
+    });
+
+    if (students.length !== studentIds.length) {
+      return res.status(400).json({ message: 'Certains étudiants sont introuvables' });
+    }
+
+    // Vérifier qu'aucun étudiant n'est déjà assigné à une classe
+    const alreadyAssigned = students.filter(student => student.classId);
+    if (alreadyAssigned.length > 0) {
+      return res.status(400).json({ 
+        message: `Certains étudiants sont déjà assignés à une classe: ${alreadyAssigned.map(s => s.name).join(', ')}` 
+      });
+    }
+
+    // Affecter les étudiants à la classe
+    const result = await User.updateMany(
+      { _id: { $in: studentIds } },
+      { classId: classId }
+    );
+
+    // Récupérer les étudiants mis à jour
+    const updatedStudents = await User.find({ _id: { $in: studentIds } })
+      .populate('classId', 'name level')
+      .populate('schoolId', 'name')
+      .select('-password');
+
+    res.json({
+      message: `${result.modifiedCount} étudiant(s) affecté(s) à la classe ${targetClass.name}`,
+      students: updatedStudents,
+      classInfo: {
+        id: targetClass._id,
+        name: targetClass.name,
+        level: targetClass.level,
+        newEnrollment: currentEnrollment + result.modifiedCount
+      }
+    });
+  } catch (err) {
+    console.error('Erreur lors de l\'affectation des étudiants:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Retirer un étudiant d'une classe
+exports.removeStudentFromClass = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+      return res.status(400).json({ message: 'ID d\'étudiant invalide' });
+    }
+
+    const student = await User.findOne({ 
+      _id: studentId, 
+      role: 'student' 
+    }).populate('classId', 'name level');
+
+    if (!student) {
+      return res.status(404).json({ message: 'Étudiant introuvable' });
+    }
+
+    if (!student.classId) {
+      return res.status(400).json({ message: 'L\'étudiant n\'est assigné à aucune classe' });
+    }
+
+    const previousClass = student.classId;
+    
+    // Retirer l'affectation
+    student.classId = null;
+    await student.save();
+
+    // Récupérer l'étudiant mis à jour
+    const updatedStudent = await User.findById(studentId)
+      .populate('schoolId', 'name')
+      .select('-password');
+
+    res.json({
+      message: `Étudiant ${student.name} retiré de la classe ${previousClass.name}`,
+      student: updatedStudent,
+      previousClass: {
+        id: previousClass._id,
+        name: previousClass.name,
+        level: previousClass.level
+      }
+    });
+  } catch (err) {
+    console.error('Erreur lors du retrait de l\'étudiant:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Transférer un étudiant d'une classe à une autre
+exports.transferStudent = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { newClassId } = req.body;
+    
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+      return res.status(400).json({ message: 'ID d\'étudiant invalide' });
+    }
+    
+    if (!mongoose.Types.ObjectId.isValid(newClassId)) {
+      return res.status(400).json({ message: 'ID de nouvelle classe invalide' });
+    }
+
+    const student = await User.findOne({ 
+      _id: studentId, 
+      role: 'student' 
+    }).populate('classId', 'name level');
+
+    if (!student) {
+      return res.status(404).json({ message: 'Étudiant introuvable' });
+    }
+
+    const Class = require('../models/Class');
+    const newClass = await Class.findById(newClassId);
+    if (!newClass) {
+      return res.status(404).json({ message: 'Nouvelle classe introuvable' });
+    }
+
+    // Vérifier la capacité de la nouvelle classe
+    const currentEnrollment = await User.countDocuments({ 
+      classId: newClassId, 
+      role: 'student' 
+    });
+
+    if (currentEnrollment >= newClass.capacity) {
+      return res.status(400).json({ 
+        message: `Capacité insuffisante dans la classe ${newClass.name}` 
+      });
+    }
+
+    const previousClass = student.classId;
+    
+    // Effectuer le transfert
+    student.classId = newClassId;
+    await student.save();
+
+    // Récupérer l'étudiant mis à jour
+    const updatedStudent = await User.findById(studentId)
+      .populate('classId', 'name level')
+      .populate('schoolId', 'name')
+      .select('-password');
+
+    res.json({
+      message: `Étudiant ${student.name} transféré ${previousClass ? `de ${previousClass.name} ` : ''}vers ${newClass.name}`,
+      student: updatedStudent,
+      transfer: {
+        from: previousClass ? {
+          id: previousClass._id,
+          name: previousClass.name,
+          level: previousClass.level
+        } : null,
+        to: {
+          id: newClass._id,
+          name: newClass.name,
+          level: newClass.level
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Erreur lors du transfert de l\'étudiant:', err);
     res.status(500).json({ message: err.message });
   }
 };

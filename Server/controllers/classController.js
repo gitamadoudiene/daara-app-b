@@ -240,6 +240,50 @@ exports.deleteClass = async (req, res) => {
   }
 };
 
+// Récupérer les statistiques d'une classe
+exports.getClassStats = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    
+    // Vérifier si la classe existe
+    const classInfo = await Class.findById(classId);
+    if (!classInfo) {
+      return res.status(404).json({ message: 'Classe non trouvée' });
+    }
+    
+    // Importer le modèle User pour compter les étudiants
+    const User = require('../models/User');
+    
+    // Compter le nombre d'étudiants assignés à cette classe
+    const studentsCount = await User.countDocuments({ 
+      classId: classId,
+      role: 'student' 
+    });
+    
+    // Calculer les statistiques
+    const stats = {
+      classInfo: {
+        _id: classInfo._id,
+        name: classInfo.name,
+        level: classInfo.level,
+        section: classInfo.section,
+        capacity: classInfo.capacity || 0,
+        academicYear: classInfo.academicYear,
+        subjects: classInfo.subjects || []
+      },
+      studentsCount: studentsCount,
+      availableSpots: Math.max(0, (classInfo.capacity || 0) - studentsCount),
+      occupancyRate: classInfo.capacity ? Math.round((studentsCount / classInfo.capacity) * 100) : 0,
+      isFull: classInfo.capacity ? studentsCount >= classInfo.capacity : false
+    };
+    
+    res.json(stats);
+  } catch (err) {
+    console.error('Erreur lors de la récupération des statistiques de classe:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // Récupérer la liste de toutes les matières existantes
 exports.getAllSubjects = async (req, res) => {
   try {
