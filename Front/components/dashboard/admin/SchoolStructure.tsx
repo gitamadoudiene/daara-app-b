@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CreateClassForm } from './CreateClassForm';
 import { 
   Building2, 
   Plus,
@@ -852,16 +851,92 @@ export function SchoolStructure() {
                       Ajouter une nouvelle classe à votre établissement.
                     </DialogDescription>
                   </DialogHeader>
-                  <CreateClassForm 
-                    onSubmit={handleCreateClass}
-                    onCancel={() => setIsCreateClassOpen(false)}
-                    initialData={createClassForm}
-                    schoolTeachers={schoolTeachers}
-                    availableSubjects={availableSubjects}
-                    loadingTeachers={loadingTeachers}
-                    loadingSubjects={loadingSubjects}
-                    schoolName={user?.school?.name}
-                  />
+                  <form onSubmit={handleCreateClass} className="space-y-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="class-name">Nom de la Classe</Label>
+                        <Input 
+                          id="class-name" 
+                          value={createClassForm.name}
+                          onChange={(e) => setCreateClassForm(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="Ex: 6ème A" 
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="class-level">Niveau</Label>
+                        <Select 
+                          value={createClassForm.level}
+                          onValueChange={(value) => setCreateClassForm(prev => ({ ...prev, level: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner le niveau" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="CP">CP - Cours Préparatoire</SelectItem>
+                            <SelectItem value="CE1">CE1 - Cours Élémentaire 1</SelectItem>
+                            <SelectItem value="CE2">CE2 - Cours Élémentaire 2</SelectItem>
+                            <SelectItem value="CM1">CM1 - Cours Moyen 1</SelectItem>
+                            <SelectItem value="CM2">CM2 - Cours Moyen 2</SelectItem>
+                            <SelectItem value="6eme">6ème</SelectItem>
+                            <SelectItem value="5eme">5ème</SelectItem>
+                            <SelectItem value="4eme">4ème</SelectItem>
+                            <SelectItem value="3eme">3ème</SelectItem>
+                            <SelectItem value="2nde">2nde</SelectItem>
+                            <SelectItem value="1ere">1ère</SelectItem>
+                            <SelectItem value="Terminal_S">Terminal S</SelectItem>
+                            <SelectItem value="Terminal_L">Terminal L</SelectItem>
+                            <SelectItem value="Terminal_G">Terminal G</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="class-capacity">Capacité</Label>
+                        <Input 
+                          id="class-capacity" 
+                          type="number"
+                          value={createClassForm.capacity}
+                          onChange={(e) => setCreateClassForm(prev => ({ ...prev, capacity: parseInt(e.target.value) }))}
+                          placeholder="40" 
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="class-teacher">Enseignant Principal</Label>
+                        <Select 
+                          value={createClassForm.teacherId}
+                          onValueChange={(value) => setCreateClassForm(prev => ({ ...prev, teacherId: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un enseignant" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {schoolTeachers.map((teacher) => (
+                              <SelectItem key={teacher._id} value={teacher._id}>
+                                {teacher.name} {teacher.subjects?.length > 0 ? `(${teacher.subjects.join(', ')})` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="class-room">Salle</Label>
+                        <Input 
+                          id="class-room" 
+                          value={createClassForm.room}
+                          onChange={(e) => setCreateClassForm(prev => ({ ...prev, room: e.target.value }))}
+                          placeholder="Ex: Salle 101" 
+                          required 
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                      <Button type="submit" className="flex-1">Créer Classe</Button>
+                      <Button type="button" variant="outline" onClick={() => setIsCreateClassOpen(false)} className="flex-1">
+                        Annuler
+                      </Button>
+                    </div>
+                  </form>
                 </DialogContent>
               </Dialog>
 
@@ -874,17 +949,92 @@ export function SchoolStructure() {
                       Modifier les informations de la classe.
                     </DialogDescription>
                   </DialogHeader>
-                  <CreateClassForm 
-                    onSubmit={handleUpdateClass}
-                    onCancel={() => setIsEditClassOpen(false)}
-                    initialData={editClassForm}
-                    schoolTeachers={schoolTeachers}
-                    availableSubjects={availableSubjects}
-                    loadingTeachers={loadingTeachers}
-                    loadingSubjects={loadingSubjects}
-                    schoolName={user?.school?.name}
-                    isEdit={true}
-                  />
+                  <form onSubmit={handleUpdateClass} className="space-y-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-class-name">Nom de la Classe</Label>
+                        <Input 
+                          id="edit-class-name" 
+                          value={editClassForm.name}
+                          onChange={(e) => setEditClassForm(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="Ex: 6ème A" 
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-class-level">Niveau</Label>
+                        <Select 
+                          value={editClassForm.level}
+                          onValueChange={(value) => setEditClassForm(prev => ({ ...prev, level: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner le niveau" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="CP">CP - Cours Préparatoire</SelectItem>
+                            <SelectItem value="CE1">CE1 - Cours Élémentaire 1</SelectItem>
+                            <SelectItem value="CE2">CE2 - Cours Élémentaire 2</SelectItem>
+                            <SelectItem value="CM1">CM1 - Cours Moyen 1</SelectItem>
+                            <SelectItem value="CM2">CM2 - Cours Moyen 2</SelectItem>
+                            <SelectItem value="6eme">6ème</SelectItem>
+                            <SelectItem value="5eme">5ème</SelectItem>
+                            <SelectItem value="4eme">4ème</SelectItem>
+                            <SelectItem value="3eme">3ème</SelectItem>
+                            <SelectItem value="2nde">2nde</SelectItem>
+                            <SelectItem value="1ere">1ère</SelectItem>
+                            <SelectItem value="Terminal_S">Terminal S</SelectItem>
+                            <SelectItem value="Terminal_L">Terminal L</SelectItem>
+                            <SelectItem value="Terminal_G">Terminal G</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-class-capacity">Capacité</Label>
+                        <Input 
+                          id="edit-class-capacity" 
+                          type="number"
+                          value={editClassForm.capacity}
+                          onChange={(e) => setEditClassForm(prev => ({ ...prev, capacity: parseInt(e.target.value) }))}
+                          placeholder="40" 
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-class-teacher">Enseignant Principal</Label>
+                        <Select 
+                          value={editClassForm.teacherId}
+                          onValueChange={(value) => setEditClassForm(prev => ({ ...prev, teacherId: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un enseignant" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {schoolTeachers.map((teacher) => (
+                              <SelectItem key={teacher._id} value={teacher._id}>
+                                {teacher.name} {teacher.subjects?.length > 0 ? `(${teacher.subjects.join(', ')})` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-class-room">Salle</Label>
+                        <Input 
+                          id="edit-class-room" 
+                          value={editClassForm.room}
+                          onChange={(e) => setEditClassForm(prev => ({ ...prev, room: e.target.value }))}
+                          placeholder="Ex: Salle 101" 
+                          required 
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                      <Button type="submit" className="flex-1">Mettre à Jour</Button>
+                      <Button type="button" variant="outline" onClick={() => setIsEditClassOpen(false)} className="flex-1">
+                        Annuler
+                      </Button>
+                    </div>
+                  </form>
                 </DialogContent>
               </Dialog>
 

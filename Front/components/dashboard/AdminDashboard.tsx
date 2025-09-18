@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { CreateClassForm } from './admin/CreateClassForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -1060,19 +1059,92 @@ export function AdminDashboard() {
                           Veuillez remplir les informations de la classe pour {user?.school?.name || 'votre école'}.
                         </DialogDescription>
                       </DialogHeader>
-                      <CreateClassForm 
-                        onSubmit={handleCreateClass}
-                        onCancel={() => setIsCreateClassOpen(false)}
-                        initialData={{
-                          ...classForm,
-                          room: classForm.room || ''
-                        }}
-                        schoolTeachers={teachers.map(teacher => ({ _id: teacher.id, name: teacher.name }))}
-                        availableSubjects={availableSubjects}
-                        loadingTeachers={loadingTeachers}
-                        loadingSubjects={loadingSubjects}
-                        schoolName={user?.school?.name}
-                      />
+                      <form onSubmit={handleCreateClass} className="space-y-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="class-name">Nom de la Classe</Label>
+                            <Input 
+                              id="class-name" 
+                              value={classForm.name}
+                              onChange={(e) => setClassForm(prev => ({ ...prev, name: e.target.value }))}
+                              placeholder="Ex: 6ème A" 
+                              required 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="class-level">Niveau</Label>
+                            <Select 
+                              value={classForm.level}
+                              onValueChange={(value) => setClassForm(prev => ({ ...prev, level: value }))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sélectionner le niveau" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="CP">CP - Cours Préparatoire</SelectItem>
+                                <SelectItem value="CE1">CE1 - Cours Élémentaire 1</SelectItem>
+                                <SelectItem value="CE2">CE2 - Cours Élémentaire 2</SelectItem>
+                                <SelectItem value="CM1">CM1 - Cours Moyen 1</SelectItem>
+                                <SelectItem value="CM2">CM2 - Cours Moyen 2</SelectItem>
+                                <SelectItem value="6eme">6ème</SelectItem>
+                                <SelectItem value="5eme">5ème</SelectItem>
+                                <SelectItem value="4eme">4ème</SelectItem>
+                                <SelectItem value="3eme">3ème</SelectItem>
+                                <SelectItem value="2nde">2nde</SelectItem>
+                                <SelectItem value="1ere">1ère</SelectItem>
+                                <SelectItem value="Terminal_S">Terminal S</SelectItem>
+                                <SelectItem value="Terminal_L">Terminal L</SelectItem>
+                                <SelectItem value="Terminal_G">Terminal G</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="class-capacity">Capacité</Label>
+                            <Input 
+                              id="class-capacity" 
+                              type="number"
+                              value={classForm.capacity}
+                              onChange={(e) => setClassForm(prev => ({ ...prev, capacity: parseInt(e.target.value) }))}
+                              placeholder="40" 
+                              required 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="class-teacher">Enseignant Principal</Label>
+                            <Select 
+                              value={classForm.teacherId}
+                              onValueChange={(value) => setClassForm(prev => ({ ...prev, teacherId: value }))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Sélectionner un enseignant" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {teachers.map((teacher) => (
+                                  <SelectItem key={teacher.id} value={teacher.id}>
+                                    {teacher.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="class-room">Salle</Label>
+                            <Input 
+                              id="class-room" 
+                              value={classForm.room}
+                              onChange={(e) => setClassForm(prev => ({ ...prev, room: e.target.value }))}
+                              placeholder="Ex: Salle 101" 
+                              required 
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                          <Button type="submit" className="flex-1">Créer Classe</Button>
+                          <Button type="button" variant="outline" onClick={() => setIsCreateClassOpen(false)} className="flex-1">
+                            Annuler
+                          </Button>
+                        </div>
+                      </form>
                     </DialogContent>
                   </Dialog>
                   <Button
