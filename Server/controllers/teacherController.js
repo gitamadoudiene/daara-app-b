@@ -88,6 +88,29 @@ exports.getAllTeachers = async (req, res) => {
   }
 };
 
+// Récupérer les enseignants d'une école spécifique
+exports.getTeachersBySchool = async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+    
+    if (!schoolId) {
+      return res.status(400).json({ message: 'ID de l\'école requis' });
+    }
+    
+    const teachers = await User.find({ 
+      role: 'teacher',
+      schoolId: new mongoose.Types.ObjectId(schoolId)
+    })
+    .populate('schoolId', 'name')
+    .select('-password')
+    .sort({ name: 1 }); // Trier par nom
+    
+    res.json(teachers);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // Récupérer un enseignant par ID
 exports.getTeacherById = async (req, res) => {
   try {

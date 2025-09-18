@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CreateClassForm } from './CreateClassForm';
 import { 
   Building2, 
   Plus,
@@ -37,10 +38,10 @@ interface Class {
   enrolled: number;
   teacher: string;
   room: string;
-  schedule: string;
   subject: string;
   status: 'Actif' | 'Inactif' | 'Complet';
   createdAt: string;
+  teacherIds?: string[];
 }
 
 interface Subject {
@@ -76,103 +77,12 @@ interface ClassAssignment {
 }
 
 export function SchoolStructure() {
-  const [classes, setClasses] = useState<Class[]>([
-    {
-      id: '1',
-      name: '6ème A',
-      level: '6ème',
-      capacity: 40,
-      enrolled: 35,
-      teacher: 'Amadou Diallo',
-      room: 'Salle 101',
-      schedule: 'Lun-Ven 8h-12h',
-      subject: 'Mathématiques',
-      status: 'Actif',
-      createdAt: '2024-01-15'
-    },
-    {
-      id: '2',
-      name: '6ème B',
-      level: '6ème',
-      capacity: 40,
-      enrolled: 40,
-      teacher: 'Fatou Ba',
-      room: 'Salle 102',
-      schedule: 'Lun-Ven 14h-18h',
-      subject: 'Français',
-      status: 'Complet',
-      createdAt: '2024-01-20'
-    },
-    {
-      id: '3',
-      name: '5ème A',
-      level: '5ème',
-      capacity: 35,
-      enrolled: 28,
-      teacher: 'Ousmane Seck',
-      room: 'Salle 201',
-      schedule: 'Lun-Ven 8h-12h',
-      subject: 'Sciences',
-      status: 'Actif',
-      createdAt: '2024-02-01'
-    },
-    {
-      id: '4',
-      name: '4ème A',
-      level: '4ème',
-      capacity: 30,
-      enrolled: 25,
-      teacher: 'Aissatou Ndiaye',
-      room: 'Salle 301',
-      schedule: 'Lun-Ven 14h-18h',
-      subject: 'Histoire-Géo',
-      status: 'Actif',
-      createdAt: '2024-02-15'
-    }
-  ]);
+  const [classes, setClasses] = useState<Class[]>([]);
 
-  const [subjects, setSubjects] = useState<Subject[]>([
-    {
-      id: '1',
-      name: 'Mathématiques',
-      code: 'MATH',
-      description: 'Enseignement des mathématiques fondamentales',
-      hours: 6,
-      teacher: 'Amadou Diallo',
-      classes: ['6ème A', '6ème B', '5ème A'],
-      status: 'Actif'
-    },
-    {
-      id: '2',
-      name: 'Français',
-      code: 'FR',
-      description: 'Langue française et littérature',
-      hours: 5,
-      teacher: 'Fatou Ba',
-      classes: ['6ème A', '6ème B'],
-      status: 'Actif'
-    },
-    {
-      id: '3',
-      name: 'Sciences Naturelles',
-      code: 'SVT',
-      description: 'Sciences de la vie et de la terre',
-      hours: 4,
-      teacher: 'Ousmane Seck',
-      classes: ['5ème A', '4ème A'],
-      status: 'Actif'
-    },
-    {
-      id: '4',
-      name: 'Histoire-Géographie',
-      code: 'HG',
-      description: 'Histoire et géographie du Sénégal et du monde',
-      hours: 3,
-      teacher: 'Aissatou Ndiaye',
-      classes: ['4ème A', '3ème A'],
-      status: 'Actif'
-    }
-  ]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+
+  // État pour les enseignants de l'école
+  const [schoolTeachers, setSchoolTeachers] = useState<any[]>([]);
 
   const [activeTab, setActiveTab] = useState('assignments');
   const [isCreateClassOpen, setIsCreateClassOpen] = useState(false);
@@ -181,6 +91,41 @@ export function SchoolStructure() {
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // États pour la modification des classes
+  const [isEditClassOpen, setIsEditClassOpen] = useState(false);
+  const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [editClassForm, setEditClassForm] = useState({
+    name: '',
+    level: '',
+    capacity: 40,
+    room: '',
+    teacherId: '',
+    subjects: [] as string[],
+    academicYear: ''
+  });
+
+  // États pour la suppression des classes
+  const [isDeleteClassOpen, setIsDeleteClassOpen] = useState(false);
+  const [deletingClass, setDeletingClass] = useState<Class | null>(null);
+
+  // État pour le formulaire de création de classe
+  const [createClassForm, setCreateClassForm] = useState({
+    name: '',
+    level: '',
+    capacity: 40,
+    room: '',
+    teacherId: 'none',
+    subjects: [] as string[],
+    academicYear: ''
+  });
+  
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
+  const [availableSubjects, setAvailableSubjects] = useState<{ id: string, name: string }[]>([]);
+  
+  // État utilisateur
+  const [user, setUser] = useState<any>(null);
 
   // États pour les affectations
   const [unassignedStudents, setUnassignedStudents] = useState<Student[]>([]);
@@ -249,10 +194,155 @@ export function SchoolStructure() {
     }
   };
 
-  const handleCreateClass = (e: React.FormEvent) => {
+  // Récupérer les classes depuis l'API
+  const fetchClasses = async () => {
+    try {
+      console.log('🔍 fetchClasses: Début de la récupération');
+      
+      const token = localStorage.getItem('daara_token');
+      console.log('🔑 Token:', token ? `${token.substring(0, 20)}...` : 'AUCUN TOKEN');
+      
+      if (!token) {
+        console.warn('❌ Aucun token trouvé');
+        return;
+      }
+
+      const userInfo = localStorage.getItem('userInfo');
+      const schoolId = userInfo ? JSON.parse(userInfo).schoolId : null;
+      console.log('🏫 SchoolId:', schoolId);
+
+      // Récupérer d'abord la liste des enseignants
+      console.log('👩‍🏫 Récupération des enseignants...');
+      const teachersResponse = await fetch('/api/teachers', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      let teachersMap = new Map();
+      if (teachersResponse.ok) {
+        const teachers = await teachersResponse.json();
+        console.log('👩‍🏫 Enseignants récupérés:', teachers.length);
+        teachers.forEach((teacher: any) => {
+          teachersMap.set(teacher._id, teacher.name);
+        });
+      } else {
+        console.warn('⚠️ Impossible de récupérer les enseignants, utilisation des valeurs par défaut');
+      }
+
+      const url = schoolId ? `/api/classes/school/${schoolId}` : '/api/classes';
+      console.log('🌐 URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response ok:', response.ok);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Données reçues:', data);
+        console.log('📊 Nombre de classes:', data.length);
+        
+        const mappedClasses = data.map((cls: any) => {
+          // Récupérer le nom du premier enseignant assigné
+          let teacherName = 'Non assigné';
+          if (cls.teacherIds && cls.teacherIds.length > 0) {
+            const firstTeacherId = cls.teacherIds[0];
+            teacherName = teachersMap.get(firstTeacherId) || 'Professeur assigné';
+          }
+
+          return {
+            id: cls._id,
+            name: cls.name,
+            level: cls.level,
+            capacity: cls.capacity || 40,
+            enrolled: cls.studentCount || 0,
+            teacher: teacherName,
+            room: cls.room || 'Salle à définir',
+            subject: cls.subjects?.join(', ') || 'Non défini',
+            status: (cls.studentCount || 0) >= (cls.capacity || 40) ? 'Complet' : 'Actif',
+            createdAt: new Date(cls.createdAt).toLocaleDateString('fr-FR'),
+            teacherIds: cls.teacherIds || []
+          };
+        });
+        
+        console.log('✅ Classes mappées:', mappedClasses);
+        setClasses(mappedClasses);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Erreur API:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des classes:', error);
+    }
+  };
+
+  const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success('Classe créée avec succès !');
-    setIsCreateClassOpen(false);
+    
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        toast.error('Token d\'authentification manquant');
+        return;
+      }
+
+      const userInfo = localStorage.getItem('daara_user');
+      const schoolId = userInfo ? JSON.parse(userInfo).schoolId : null;
+      
+      if (!schoolId) {
+        toast.error('ID de l\'école non trouvé');
+        return;
+      }
+
+      const classData = {
+        name: createClassForm.name,
+        level: createClassForm.level,
+        capacity: createClassForm.capacity,
+        room: createClassForm.room,
+        schoolId: schoolId,
+        teacherIds: createClassForm.teacherId && createClassForm.teacherId !== 'none' ? [createClassForm.teacherId] : [],
+        subjects: createClassForm.subjects,
+        academicYear: createClassForm.academicYear || new Date().getFullYear().toString()
+      };
+
+      const response = await fetch('/api/classes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(classData)
+      });
+
+      if (response.ok) {
+        toast.success('Classe créée avec succès !');
+        setIsCreateClassOpen(false);
+        setCreateClassForm({
+          name: '',
+          level: '',
+          capacity: 40,
+          room: '',
+          teacherId: 'none',
+          subjects: []
+        });
+        fetchClasses(); // Rafraîchir la liste
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Erreur lors de la création');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la création:', error);
+      toast.error('Erreur lors de la création de la classe');
+    }
   };
 
   const handleCreateSubject = (e: React.FormEvent) => {
@@ -315,6 +405,10 @@ export function SchoolStructure() {
         setIsAssignmentModalOpen(false);
         
         toast.success(`${selectedStudents.length} élève(s) affecté(s) avec succès`);
+        
+        // Rafraîchir les données
+        fetchUnassignedStudents();
+        fetchClasses();
       } else {
         const error = await response.json();
         toast.error(error.message || 'Erreur lors de l\'affectation');
@@ -369,9 +463,117 @@ export function SchoolStructure() {
     return classes.filter(c => c.enrolled < c.capacity);
   };
 
+  // Récupérer les matières depuis l'API
+  const fetchSubjects = async () => {
+    try {
+      console.log('📚 fetchSubjects: Début de la récupération');
+      setLoadingSubjects(true);
+      
+      const token = localStorage.getItem('daara_token');
+      console.log('🔑 Token:', token ? `${token.substring(0, 20)}...` : 'AUCUN TOKEN');
+      
+      if (!token) {
+        console.warn('❌ Aucun token trouvé');
+        setLoadingSubjects(false);
+        return;
+      }
+
+      const response = await fetch('/api/classes/subjects', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response ok:', response.ok);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Matières reçues:', data);
+        console.log('📊 Nombre de matières:', data.length);
+        
+        // Définir les matières disponibles pour le formulaire
+        setAvailableSubjects(data.map((subject: any) => ({ id: subject._id || subject, name: subject.name || subject })));
+        
+        // Transformer les données en format Subject
+        const mappedSubjects = data.map((subjectName: string, index: number) => ({
+          id: `subject-${index}`,
+          name: subjectName,
+          code: subjectName.substring(0, 3).toUpperCase(),
+          description: `Matière: ${subjectName}`,
+          hours: 4, // Valeur par défaut
+          teacher: 'À assigner',
+          classes: [],
+          status: 'Actif' as const
+        }));
+        
+        console.log('✅ Matières mappées:', mappedSubjects);
+        setSubjects(mappedSubjects);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Erreur API matières:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des matières:', error);
+    } finally {
+      setLoadingSubjects(false);
+    }
+  };
+
+  // Récupérer les enseignants de l'école de l'admin
+  const fetchSchoolTeachers = async () => {
+    try {
+      console.log('👩‍🏫 fetchSchoolTeachers: Début de la récupération');
+      setLoadingTeachers(true);
+      
+      const token = localStorage.getItem('daara_token');
+      console.log('🔑 Token:', token ? `${token.substring(0, 20)}...` : 'AUCUN TOKEN');
+      
+      if (!token) {
+        console.warn('❌ Aucun token trouvé');
+        setLoadingTeachers(false);
+        return;
+      }
+
+      const userInfo = localStorage.getItem('daara_user');
+      const schoolId = userInfo ? JSON.parse(userInfo).schoolId : null;
+      
+      if (!schoolId) {
+        console.warn('❌ Aucun schoolId trouvé dans userInfo');
+        return;
+      }
+
+      const response = await fetch(`/api/users/teachers/school/${schoolId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response ok:', response.ok);
+
+      if (response.ok) {
+        const teachers = await response.json();
+        console.log('👩‍🏫 Enseignants de l\'école récupérés:', teachers.length);
+        setSchoolTeachers(teachers);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Erreur API enseignants:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des enseignants:', error);
+    } finally {
+      setLoadingTeachers(false);
+    }
+  };
+
   // Effect pour charger les étudiants non assignés au montage du composant
   useEffect(() => {
-    console.log('🚀 useEffect: Composant monté, appel de fetchUnassignedStudents');
+    console.log('🚀 useEffect: Composant monté, appel des fonctions de récupération');
     
     // Vérifier le localStorage
     const token = localStorage.getItem('daara_token');
@@ -379,7 +581,24 @@ export function SchoolStructure() {
     console.log('📱 localStorage token:', token ? 'PRÉSENT' : 'ABSENT');
     console.log('📱 localStorage userInfo:', userInfo ? JSON.parse(userInfo) : 'ABSENT');
     
-    fetchUnassignedStudents();
+    // Charger les données utilisateur
+    if (userInfo) {
+      try {
+        const userData = JSON.parse(userInfo);
+        setUser(userData);
+      } catch (error) {
+        console.error('❌ Erreur lors du parsing des données utilisateur:', error);
+      }
+    }
+    
+    if (token) {
+      fetchUnassignedStudents();
+      fetchClasses();
+      fetchSubjects();
+      fetchSchoolTeachers();
+    } else {
+      console.warn('❌ Aucun token trouvé, impossible de charger les données');
+    }
   }, []);
 
   const handleViewDetails = (item: Class | Subject) => {
@@ -391,6 +610,137 @@ export function SchoolStructure() {
       setSelectedClass(null);
     }
     setIsViewDetailsOpen(true);
+  };
+
+  // Fonctions de modification des classes
+  const handleEditClass = (classItem: Class) => {
+    setEditingClass(classItem);
+    setEditClassForm({
+      name: classItem.name,
+      level: classItem.level,
+      capacity: classItem.capacity,
+      room: classItem.room,
+      teacherId: classItem.teacherIds?.[0] || 'none', // Premier enseignant assigné
+      subjects: classItem.subjects || [], // Matières assignées
+      academicYear: classItem.academicYear || new Date().getFullYear().toString()
+    });
+    setIsEditClassOpen(true);
+  };
+
+  const handleUpdateClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingClass) return;
+
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        toast.error('Token d\'authentification manquant');
+        return;
+      }
+
+      const updateData = {
+        name: editClassForm.name,
+        level: editClassForm.level,
+        capacity: editClassForm.capacity,
+        room: editClassForm.room,
+        teacherIds: editClassForm.teacherId && editClassForm.teacherId !== 'none' ? [editClassForm.teacherId] : [],
+        subjects: editClassForm.subjects,
+        academicYear: editClassForm.academicYear || new Date().getFullYear().toString()
+      };
+
+      const response = await fetch(`/api/classes/${editingClass.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      if (response.ok) {
+        toast.success('Classe mise à jour avec succès !');
+        setIsEditClassOpen(false);
+        setEditingClass(null);
+        fetchClasses(); // Rafraîchir la liste
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Erreur lors de la mise à jour');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour:', error);
+      toast.error('Erreur lors de la mise à jour de la classe');
+    }
+  };
+
+  // Fonctions de suppression des classes
+  const handleDeleteClass = (classItem: Class) => {
+    setDeletingClass(classItem);
+    setIsDeleteClassOpen(true);
+  };
+
+  const handleConfirmDeleteClass = async () => {
+    if (!deletingClass) return;
+
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        toast.error('Token d\'authentification manquant');
+        return;
+      }
+
+      // D'abord, réassigner les élèves de cette classe au statut "non assigné"
+      if (deletingClass.enrolled > 0) {
+        console.log(`Réassignation de ${deletingClass.enrolled} élève(s) de la classe ${deletingClass.name}`);
+        
+        // Récupérer les élèves de cette classe
+        const studentsResponse = await fetch(`/api/classes/${deletingClass.id}/students`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (studentsResponse.ok) {
+          const students = await studentsResponse.json();
+          
+          // Réassigner chaque élève au statut non assigné
+          for (const student of students) {
+            await fetch(`/api/users/students/${student._id}/unassign`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              }
+            });
+          }
+          
+          console.log(`${students.length} élève(s) réassigné(s) au statut non assigné`);
+        }
+      }
+
+      // Supprimer la classe
+      const response = await fetch(`/api/classes/${deletingClass.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        toast.success(`Classe supprimée avec succès ! ${deletingClass.enrolled > 0 ? `${deletingClass.enrolled} élève(s) réassigné(s)` : ''}`);
+        setIsDeleteClassOpen(false);
+        setDeletingClass(null);
+        fetchClasses(); // Rafraîchir la liste des classes
+        fetchUnassignedStudents(); // Rafraîchir la liste des élèves non assignés
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Erreur lors de la suppression');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      toast.error('Erreur lors de la suppression de la classe');
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -502,50 +852,88 @@ export function SchoolStructure() {
                       Ajouter une nouvelle classe à votre établissement.
                     </DialogDescription>
                   </DialogHeader>
-                  <form onSubmit={handleCreateClass} className="space-y-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="class-name">Nom de la Classe</Label>
-                        <Input id="class-name" placeholder="Ex: 6ème A" required />
+                  <CreateClassForm 
+                    onSubmit={handleCreateClass}
+                    onCancel={() => setIsCreateClassOpen(false)}
+                    initialData={createClassForm}
+                    schoolTeachers={schoolTeachers}
+                    availableSubjects={availableSubjects}
+                    loadingTeachers={loadingTeachers}
+                    loadingSubjects={loadingSubjects}
+                    schoolName={user?.school?.name}
+                  />
+                </DialogContent>
+              </Dialog>
+
+              {/* Modal de modification de classe */}
+              <Dialog open={isEditClassOpen} onOpenChange={setIsEditClassOpen}>
+                <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="text-lg sm:text-xl">Modifier la Classe</DialogTitle>
+                    <DialogDescription className="text-sm">
+                      Modifier les informations de la classe.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <CreateClassForm 
+                    onSubmit={handleUpdateClass}
+                    onCancel={() => setIsEditClassOpen(false)}
+                    initialData={editClassForm}
+                    schoolTeachers={schoolTeachers}
+                    availableSubjects={availableSubjects}
+                    loadingTeachers={loadingTeachers}
+                    loadingSubjects={loadingSubjects}
+                    schoolName={user?.school?.name}
+                    isEdit={true}
+                  />
+                </DialogContent>
+              </Dialog>
+
+              {/* Modal de confirmation de suppression de classe */}
+              <Dialog open={isDeleteClassOpen} onOpenChange={setIsDeleteClassOpen}>
+                <DialogContent className="mx-4 w-[95vw] max-w-md sm:mx-auto sm:w-full">
+                  <DialogHeader>
+                    <DialogTitle className="text-lg sm:text-xl text-red-600">Confirmer la Suppression</DialogTitle>
+                    <DialogDescription className="text-sm">
+                      Êtes-vous sûr de vouloir supprimer cette classe ? Cette action est irréversible.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  {deletingClass && (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <h4 className="font-semibold text-gray-900">{deletingClass.name}</h4>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Niveau: {deletingClass.level} • {deletingClass.enrolled} élève(s) inscrit(s)
+                        </p>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="class-level">Niveau</Label>
-                        <Select>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner le niveau" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="6eme">6ème</SelectItem>
-                            <SelectItem value="5eme">5ème</SelectItem>
-                            <SelectItem value="4eme">4ème</SelectItem>
-                            <SelectItem value="3eme">3ème</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="class-capacity">Capacité</Label>
-                        <Input id="class-capacity" type="number" placeholder="40" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="class-teacher">Enseignant Principal</Label>
-                        <Input id="class-teacher" placeholder="Nom de l'enseignant" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="class-room">Salle</Label>
-                        <Input id="class-room" placeholder="Ex: Salle 101" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="class-schedule">Horaires</Label>
-                        <Input id="class-schedule" placeholder="Ex: Lun-Ven 8h-12h" required />
+                      
+                      {deletingClass.enrolled > 0 && (
+                        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-sm text-yellow-800">
+                            <strong>Attention:</strong> {deletingClass.enrolled} élève(s) sont actuellement inscrit(s) dans cette classe. 
+                            Ils seront automatiquement réassignés au statut &quot;non assigné&quot;.
+                          </p>
+                        </div>
+                      )}
+                      
+                      <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                        <Button 
+                          variant="destructive" 
+                          onClick={handleConfirmDeleteClass}
+                          className="flex-1"
+                        >
+                          Supprimer Définitivement
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setIsDeleteClassOpen(false)}
+                          className="flex-1"
+                        >
+                          Annuler
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                      <Button type="submit" className="flex-1">Créer Classe</Button>
-                      <Button type="button" variant="outline" onClick={() => setIsCreateClassOpen(false)} className="flex-1">
-                        Annuler
-                      </Button>
-                    </div>
-                  </form>
+                  )}
                 </DialogContent>
               </Dialog>
 
@@ -647,10 +1035,6 @@ export function SchoolStructure() {
                               <Building2 className="h-4 w-4 flex-shrink-0" />
                               <span>Salle: {classItem.room}</span>
                             </div>
-                            <div className="flex items-center space-x-2">
-                              <Clock className="h-4 w-4 flex-shrink-0" />
-                              <span>Horaires: {classItem.schedule}</span>
-                            </div>
                           </div>
                           
                           <div className="space-y-2">
@@ -683,10 +1067,20 @@ export function SchoolStructure() {
                         <Button 
                           variant="outline" 
                           size="sm"
+                          onClick={() => handleEditClass(classItem)}
                           className="w-full sm:w-auto"
                         >
                           <Edit className="mr-2 h-4 w-4" />
                           Modifier
+                        </Button>
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={() => handleDeleteClass(classItem)}
+                          className="w-full sm:w-auto"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Supprimer
                         </Button>
                       </div>
                     </div>
@@ -924,10 +1318,6 @@ export function SchoolStructure() {
                 <div>
                   <Label>Salle</Label>
                   <p className="font-medium">{selectedClass.room}</p>
-                </div>
-                <div>
-                  <Label>Horaires</Label>
-                  <p className="font-medium">{selectedClass.schedule}</p>
                 </div>
                 <div>
                   <Label>Statut</Label>

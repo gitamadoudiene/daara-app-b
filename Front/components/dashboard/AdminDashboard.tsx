@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { CreateClassForm } from './admin/CreateClassForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -117,13 +118,34 @@ export function AdminDashboard() {
     gender: '',
     status: 'Actif'
   });
+  
+  // Pour la recherche de parents
+  const [parentSearchTerm, setParentSearchTerm] = useState('');
+  const [filteredParents, setFilteredParents] = useState<{id: string, name: string}[]>([]);
+  const [showParentDropdown, setShowParentDropdown] = useState(false);
 
   const [classForm, setClassForm] = useState({
     name: '',
     level: '',
     capacity: '',
-    academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1), // Par exemple: "2024-2025"
-    schoolId: user?.schoolId || ''
+    academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1),
+    schoolId: user?.schoolId || '',
+    teacherId: 'none', // Professeur titulaire
+    room: '', // Salle de classe
+    subjects: [] as string[] // Liste des matières
+  });
+
+  // États pour les listes de données
+  const [teachers, setTeachers] = useState<{ id: string, name: string }[]>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<{ id: string, name: string }[]>([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
+  const [rooms] = useState(() => {
+    // Générer les salles de 1 à 100
+    return Array.from({ length: 100 }, (_, i) => ({
+      id: (i + 1).toString(),
+      name: `Salle ${i + 1}`
+    }));
   });
 
   // Mock dashboard stats
@@ -252,7 +274,16 @@ export function AdminDashboard() {
       });
       if (response.ok) {
         const data = await response.json();
-        setClasses(data.map((cls: any) => ({ id: cls._id, name: cls.name, level: cls.level })));
+        setClasses(data.map((cls: any) => ({ 
+          id: cls._id,
+          name: cls.name,
+          level: cls.level,
+          capacity: cls.capacity || 40,
+          enrolled: cls.studentCount || 0,
+          room: cls.room || 'Salle à définir',
+          teacherIds: cls.teacherIds || [],
+          subjects: cls.subjects || []
+        })));
       }
     } catch (error) {
       console.error('Erreur lors du chargement des classes:', error);
@@ -295,7 +326,9 @@ export function AdminDashboard() {
             const data = await response.json();
             // Filtrer les parents par l'école de l'admin
             const schoolParents = data.filter((parent: any) => parent.schoolId?._id === user.schoolId);
-            setParents(schoolParents.map((parent: any) => ({ id: parent._id, name: parent.name })));
+            const mappedParents = schoolParents.map((parent: any) => ({ id: parent._id, name: parent.name }));
+            setParents(mappedParents);
+            setFilteredParents(mappedParents); // Initialiser également les parents filtrés
           }
         } catch (error) {
           console.error('Erreur lors du chargement des parents:', error);
@@ -304,6 +337,45 @@ export function AdminDashboard() {
 
       fetchClassesLocal();
       fetchParents();
+      // Appeler les fonctions définies en dehors de useEffect
+      const loadTeachers = async () => {
+        try {
+          const token = localStorage.getItem('daara_token');
+          const response = await fetch(`http://localhost:5000/api/users/teachers/school/${user?.schoolId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setTeachers(data.map((teacher: any) => ({ id: teacher._id, name: teacher.name })));
+          }
+        } catch (error) {
+          console.error('Erreur lors du chargement des professeurs:', error);
+        }
+      };
+      
+      const loadSubjects = async () => {
+        try {
+          const token = localStorage.getItem('daara_token');
+          const response = await fetch('http://localhost:5000/api/classes/subjects', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setAvailableSubjects(data.map((subject: any) => ({ id: subject._id || subject, name: subject.name || subject })));
+          }
+        } catch (error) {
+          console.error('Erreur lors du chargement des matières:', error);
+        }
+      };
+      
+      loadTeachers();
+      loadSubjects();
     }
   }, [user?.schoolId]);
 
@@ -373,6 +445,37 @@ export function AdminDashboard() {
     }
   };
 
+  // Fonction pour la recherche de parents
+  const handleParentSearch = (searchTerm: string) => {
+    setParentSearchTerm(searchTerm);
+    
+    if (searchTerm.trim() === '') {
+      setFilteredParents(parents);
+    } else {
+      const filtered = parents.filter(parent =>
+        parent.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredParents(filtered);
+    }
+    
+    setShowParentDropdown(true);
+  };
+
+  // Fonction pour sélectionner un parent
+  const handleParentSelect = (parent: { id: string, name: string }) => {
+    setStudentForm({...studentForm, parentId: parent.id});
+    setParentSearchTerm(parent.name);
+    setShowParentDropdown(false);
+  };
+
+  // Fonction pour effacer la sélection de parent
+  const clearParentSelection = () => {
+    setStudentForm({...studentForm, parentId: undefined});
+    setParentSearchTerm('');
+    setFilteredParents(parents);
+    setShowParentDropdown(false);
+  };
+  
   // Fonction pour créer un étudiant
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -425,8 +528,7 @@ export function AdminDashboard() {
   };
 
   // Fonction pour créer une classe
-  const handleCreateClass = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateClass = async (formData) => {
     try {
       const token = localStorage.getItem('daara_token');
       const response = await fetch('http://localhost:5000/api/classes', {
@@ -436,11 +538,14 @@ export function AdminDashboard() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          name: classForm.name,
-          level: classForm.level,
-          capacity: parseInt(classForm.capacity),
-          academicYear: classForm.academicYear,
-          schoolId: user?.schoolId // École verrouillée
+          name: formData.name,
+          level: formData.level,
+          capacity: parseInt(formData.capacity),
+          academicYear: formData.academicYear,
+          schoolId: user?.schoolId,
+          teacherIds: formData.teacherId && formData.teacherId !== 'none' ? [formData.teacherId] : [], // Professeur titulaire
+          room: formData.room,
+          subjects: formData.subjects // Liste des matières
         })
       });
 
@@ -453,7 +558,10 @@ export function AdminDashboard() {
           level: '',
           capacity: '',
           academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1),
-          schoolId: user?.schoolId || ''
+          schoolId: user?.schoolId || '',
+          teacherId: 'none',
+          room: '',
+          subjects: []
         });
         // Rafraîchir la liste des classes
         fetchClasses();
@@ -871,18 +979,42 @@ export function AdminDashboard() {
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="student-parent">Parent</Label>
-                            <Select value={studentForm.parentId} onValueChange={(value) => setStudentForm({...studentForm, parentId: value})}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner un parent" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {parents.map((parent) => (
-                                  <SelectItem key={parent.id} value={parent.id}>
-                                    {parent.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="relative" data-parent-search>
+                              <div className="flex">
+                                <Input
+                                  id="student-parent"
+                                  type="text"
+                                  placeholder="Rechercher un parent..."
+                                  value={parentSearchTerm}
+                                  onChange={(e) => handleParentSearch(e.target.value)}
+                                  onFocus={() => setShowParentDropdown(true)}
+                                  className="flex-1"
+                                />
+                                {studentForm.parentId && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className="px-2 ml-1"
+                                    onClick={clearParentSelection}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                              {showParentDropdown && filteredParents.length > 0 && (
+                                <div className="absolute mt-1 w-full z-10 bg-white rounded-md border border-gray-200 shadow-lg max-h-60 overflow-auto">
+                                  {filteredParents.map((parent) => (
+                                    <div
+                                      key={parent.id}
+                                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                                      onClick={() => handleParentSelect(parent)}
+                                    >
+                                      {parent.name}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div className="md:col-span-2 space-y-2">
                             <Label htmlFor="student-address">Adresse</Label>
@@ -928,91 +1060,19 @@ export function AdminDashboard() {
                           Veuillez remplir les informations de la classe pour {user?.school?.name || 'votre école'}.
                         </DialogDescription>
                       </DialogHeader>
-                      <form onSubmit={handleCreateClass} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="class-name">Nom de la Classe</Label>
-                            <Input
-                              id="class-name"
-                              value={classForm.name}
-                              onChange={(e) => setClassForm({...classForm, name: e.target.value})}
-                              placeholder="Ex: 6ème A, CM2 B"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="class-level">Niveau</Label>
-                            <Select 
-                              value={classForm.level} 
-                              onValueChange={(value) => setClassForm({...classForm, level: value})}
-                              required
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner le niveau" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="CP">CP - Cours Préparatoire</SelectItem>
-                                <SelectItem value="CE1">CE1 - Cours Élémentaire 1</SelectItem>
-                                <SelectItem value="CE2">CE2 - Cours Élémentaire 2</SelectItem>
-                                <SelectItem value="CM1">CM1 - Cours Moyen 1</SelectItem>
-                                <SelectItem value="CM2">CM2 - Cours Moyen 2</SelectItem>
-                                <SelectItem value="6eme">6ème</SelectItem>
-                                <SelectItem value="5eme">5ème</SelectItem>
-                                <SelectItem value="4eme">4ème</SelectItem>
-                                <SelectItem value="3eme">3ème</SelectItem>
-                                <SelectItem value="2nde">2nde</SelectItem>
-                                <SelectItem value="1ere">1ère</SelectItem>
-                                <SelectItem value="terminale">Terminale</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="class-capacity">Capacité</Label>
-                            <Input
-                              id="class-capacity"
-                              type="number"
-                              value={classForm.capacity}
-                              onChange={(e) => setClassForm({...classForm, capacity: e.target.value})}
-                              placeholder="Ex: 35"
-                              min="1"
-                              max="50"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="class-academic-year">Année Académique</Label>
-                            <Select 
-                              value={classForm.academicYear} 
-                              onValueChange={(value) => setClassForm({...classForm, academicYear: value})}
-                              required
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner l'année" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="2023-2024">2023-2024</SelectItem>
-                                <SelectItem value="2024-2025">2024-2025</SelectItem>
-                                <SelectItem value="2025-2026">2025-2026</SelectItem>
-                                <SelectItem value="2026-2027">2026-2027</SelectItem>
-                                <SelectItem value="2027-2028">2027-2028</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>École</Label>
-                            <div className="p-2 bg-gray-50 rounded border">
-                              <span className="text-sm text-gray-600">🏫 {user?.school?.name || 'École non spécifiée'}</span>
-                              <p className="text-xs text-gray-500 mt-1">École verrouillée pour cet administrateur</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex justify-end space-x-2 pt-4">
-                          <Button type="button" variant="outline" onClick={() => setIsCreateClassOpen(false)}>
-                            Annuler
-                          </Button>
-                          <Button type="submit">Créer la Classe</Button>
-                        </div>
-                      </form>
+                      <CreateClassForm 
+                        onSubmit={handleCreateClass}
+                        onCancel={() => setIsCreateClassOpen(false)}
+                        initialData={{
+                          ...classForm,
+                          room: classForm.room || ''
+                        }}
+                        schoolTeachers={teachers.map(teacher => ({ _id: teacher.id, name: teacher.name }))}
+                        availableSubjects={availableSubjects}
+                        loadingTeachers={loadingTeachers}
+                        loadingSubjects={loadingSubjects}
+                        schoolName={user?.school?.name}
+                      />
                     </DialogContent>
                   </Dialog>
                   <Button

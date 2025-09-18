@@ -132,6 +132,14 @@ exports.getUserById = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
   try {
+    // Harmonisation de class et classId
+    if (req.body.class !== undefined && req.body.classId === undefined) {
+      req.body.classId = req.body.class;
+      delete req.body.class;
+    } else if (req.body.classId !== undefined && req.body.class === undefined) {
+      // Si on a classId mais pas class, garder classId uniquement
+    }
+    
     // Cast children IDs to ObjectId if present
     if (req.body.children && Array.isArray(req.body.children)) {
       const mongoose = require('mongoose');
@@ -141,10 +149,19 @@ exports.updateUser = async (req, res) => {
       }
       req.body.children = validIds.map(id => new mongoose.Types.ObjectId(id));
     }
+    
+    // Traiter l'ID de classe s'il est fourni
+    if (req.body.classId && req.body.classId !== 'null' && req.body.classId !== null) {
+      if (!mongoose.Types.ObjectId.isValid(req.body.classId)) {
+        return res.status(400).json({ message: 'ID de classe invalide' });
+      }
+    }
+    
     const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
   } catch (err) {
+    console.error('Erreur lors de la mise à jour de l\'utilisateur:', err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -215,7 +232,7 @@ exports.createStudent = async (req, res) => {
       role: 'student',
       gender: gender || undefined,
       schoolId: validSchoolId,
-      class: classId,
+      classId: classId, // Correction : utiliser classId au lieu de class
       parentId: validParentId,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
       address: address?.trim(),
@@ -224,6 +241,11 @@ exports.createStudent = async (req, res) => {
     });
     
     const savedStudent = await student.save();
+    
+    // Mettre à jour le nombre d'étudiants dans la classe si une classe est assignée
+    if (classId) {
+      await Class.findByIdAndUpdate(classId, { $inc: { studentCount: 1 } });
+    }
     
     // Ajouter l'étudiant à la liste des enfants du parent s'il est spécifié
     if (validParentId) {
@@ -241,7 +263,7 @@ exports.createStudent = async (req, res) => {
         email: savedStudent.email,
         role: savedStudent.role,
         phone: savedStudent.phone,
-        class: savedStudent.class
+        classId: savedStudent.classId // Correction : retourner classId au lieu de class
       },
       tempPassword
     });
@@ -352,6 +374,10 @@ exports.assignStudentsToClass = async (req, res) => {
       { classId: classId }
     );
 
+    // Mettre à jour le nombre d'étudiants dans la classe
+    const newEnrollmentCount = currentEnrollment + result.modifiedCount;
+    await Class.findByIdAndUpdate(classId, { studentCount: newEnrollmentCount });
+
     // Récupérer les étudiants mis à jour
     const updatedStudents = await User.find({ _id: { $in: studentIds } })
       .populate('classId', 'name level')
@@ -365,7 +391,7 @@ exports.assignStudentsToClass = async (req, res) => {
         id: targetClass._id,
         name: targetClass.name,
         level: targetClass.level,
-        newEnrollment: currentEnrollment + result.modifiedCount
+        newEnrollment: newEnrollmentCount
       }
     });
   } catch (err) {
@@ -401,6 +427,9 @@ exports.removeStudentFromClass = async (req, res) => {
     // Retirer l'affectation
     student.classId = null;
     await student.save();
+
+    // Mettre à jour le nombre d'étudiants dans la classe précédente
+    await Class.findByIdAndUpdate(previousClass._id, { $inc: { studentCount: -1 } });
 
     // Récupérer l'étudiant mis à jour
     const updatedStudent = await User.findById(studentId)
@@ -468,6 +497,14 @@ exports.transferStudent = async (req, res) => {
     // Effectuer le transfert
     student.classId = newClassId;
     await student.save();
+
+    // Mettre à jour les compteurs d'étudiants
+    if (previousClass) {
+      // Décrémenter l'ancienne classe
+      await Class.findByIdAndUpdate(previousClass._id, { $inc: { studentCount: -1 } });
+    }
+    // Incrémenter la nouvelle classe
+    await Class.findByIdAndUpdate(newClassId, { $inc: { studentCount: 1 } });
 
     // Récupérer l'étudiant mis à jour
     const updatedStudent = await User.findById(studentId)

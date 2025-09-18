@@ -25,15 +25,23 @@ interface Student {
   name: string;
   email: string;
   schoolId?: string;
-  class?: string;
+  classId?: string;
+  class?: string; // Garder pour la compatibilité
   status: string;
 }
 
 interface Class {
   _id: string;
+  id: string; // Pour la compatibilité
   name: string;
   level: string;
-  students: string[];
+  students?: string[];
+  capacity?: number;
+  enrolled?: number;
+  teacherIds?: string[];
+  subjects?: string[];
+  room?: string;
+  status?: string;
 }
 
 export function ClassAssignment() {
@@ -62,7 +70,7 @@ export function ClassAssignment() {
         setStudents(schoolStudents);
         
         // Séparer les étudiants non assignés
-        const unassigned = schoolStudents.filter((student: Student) => !student.class);
+        const unassigned = schoolStudents.filter((student: Student) => !student.classId);
         setUnassignedStudents(unassigned);
       }
     } catch (error) {
@@ -82,7 +90,18 @@ export function ClassAssignment() {
       });
       if (response.ok) {
         const data = await response.json();
-        setClasses(data);
+        setClasses(data.map((cls: any) => ({ 
+          id: cls._id,
+          _id: cls._id, // Garder l'ID original pour la compatibilité
+          name: cls.name,
+          level: cls.level,
+          capacity: cls.capacity || 40,
+          enrolled: cls.studentCount || 0,
+          room: cls.room || 'Salle à définir',
+          teacherIds: cls.teacherIds || [],
+          subjects: cls.subjects || [],
+          studentCount: cls.studentCount || 0
+        })));
       }
     } catch (error) {
       console.error('Erreur lors du chargement des classes:', error);
@@ -111,7 +130,7 @@ export function ClassAssignment() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          class: className
+          classId: className // Utilisation de classId au lieu de class
         })
       });
 
@@ -143,7 +162,7 @@ export function ClassAssignment() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          class: null
+          classId: null // Utilisation de classId au lieu de class
         })
       });
 
@@ -168,7 +187,7 @@ export function ClassAssignment() {
   );
 
   const getStudentsInClass = (className: string) => {
-    return students.filter(student => student.class === className);
+    return students.filter(student => student.classId === className);
   };
 
   return (
