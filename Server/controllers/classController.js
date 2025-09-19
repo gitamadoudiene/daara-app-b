@@ -5,7 +5,12 @@ const mongoose = require('mongoose');
 // Créer une nouvelle classe
 exports.createClass = async (req, res) => {
   try {
-    const { name, level, section, schoolId, academicYear, subjects } = req.body;
+    const { 
+      name, level, section, room, capacity, schoolId, 
+      academicYear, subjects, teacherId, teachers, resTeacher 
+    } = req.body;
+    
+    console.log('📝 Données reçues pour création:', { name, level, room, capacity, resTeacher, teacherId });
     
     // Vérifier si l'école existe
     const school = await School.findById(schoolId);
@@ -18,17 +23,36 @@ exports.createClass = async (req, res) => {
     if (existingClass) {
       return res.status(400).json({ message: 'Une classe avec ce nom existe déjà dans cette école' });
     }
+
+    // Générer l'année scolaire si non fournie
+    const currentYear = new Date().getFullYear();
+    const defaultAcademicYear = `${currentYear}-${currentYear + 1}`;
     
     const newClass = new Class({
       name,
       level,
       section,
+      room: room || 'Salle à définir',
+      capacity: capacity || 40,
       schoolId,
-      academicYear,
-      subjects: subjects || []
+      anneeScolaire: academicYear || defaultAcademicYear,
+      subjects: subjects || [],
+      
+      // Gestion des professeurs (nouvelle structure)
+      teachers: teachers || [],
+      resTeacher: (resTeacher || teacherId) ? new mongoose.Types.ObjectId(resTeacher || teacherId) : null,
+      
+      // Initialisation des élèves et parents
+      students: [],
+      parents: [],
+      emploiDuTemps: null,
+      
+      // Compatibilité avec l'ancienne structure
+      academicYear: academicYear || defaultAcademicYear
     });
     
     const savedClass = await newClass.save();
+    console.log('✅ Classe créée:', { id: savedClass._id, name: savedClass.name, resTeacher: savedClass.resTeacher });
     res.status(201).json(savedClass);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -139,11 +163,14 @@ exports.getClassesBySchool = async (req, res) => {
     try {
       console.log(`🔍 Recherche des classes pour l'école ${school.name}...`);
       
-      // IMPORTANT: Utiliser une requête optimisée et robuste
+      // IMPORTANT: Utiliser une requête optimisée avec la nouvelle structure
       const classQuery = Class.find({ schoolId: cleanSchoolId })
         .populate('schoolId', 'name')
-        .select('name level section academicYear')
-        .lean() // Amélioration de performance: retourner des objets JS simples
+        .populate('teachers', 'firstName lastName name email') // Tous les professeurs
+        .populate('resTeacher', 'firstName lastName name email') // Professeur principal - inclut name et firstName/lastName
+        .populate('students', 'firstName lastName name email') // Élèves assignés
+        .populate('parents', 'firstName lastName name email') // Parents des élèves
+        .select('name level section room capacity studentCount teachers resTeacher students parents subjects anneeScolaire createdAt updatedAt') // Nouvelle structure
         .limit(500); // Sécurité: limiter le nombre de résultats
       
       // Exécuter la requête
@@ -194,7 +221,12 @@ exports.getClassById = async (req, res) => {
 // Mettre à jour une classe
 exports.updateClass = async (req, res) => {
   try {
-    const { name, level, section, academicYear, subjects } = req.body;
+    const { 
+      name, level, section, room, capacity, academicYear, anneeScolaire, subjects,
+      teachers, resTeacher, students, parents, emploiDuTemps
+    } = req.body;
+    
+    console.log('📝 Données reçues pour mise à jour:', { name, level, room, capacity, resTeacher, id: req.params.id });
     
     // Vérifier si une classe avec le même nom existe déjà (si le nom est mis à jour)
     if (name) {
@@ -208,10 +240,32 @@ exports.updateClass = async (req, res) => {
         return res.status(400).json({ message: 'Une classe avec ce nom existe déjà dans cette école' });
       }
     }
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (level !== undefined) updateData.level = level;
+    if (section !== undefined) updateData.section = section;
+    if (room !== undefined) updateData.room = room;
+    if (capacity !== undefined) updateData.capacity = capacity;
+    if (academicYear !== undefined) updateData.academicYear = academicYear;
+    if (anneeScolaire !== undefined) updateData.anneeScolaire = anneeScolaire;
+    if (subjects !== undefined) updateData.subjects = subjects;
+    
+    // Nouveaux champs de la structure
+    if (teachers !== undefined) updateData.teachers = teachers;
+    if (resTeacher !== undefined) {
+      updateData.resTeacher = resTeacher ? new mongoose.Types.ObjectId(resTeacher) : null;
+    }
+    if (students !== undefined) {
+      updateData.students = students;
+      updateData.studentCount = students.length; // Calculer automatiquement
+    }
+    if (parents !== undefined) updateData.parents = parents;
+    if (emploiDuTemps !== undefined) updateData.emploiDuTemps = emploiDuTemps;
     
     const updatedClass = await Class.findByIdAndUpdate(
       req.params.id,
-      { name, level, section, academicYear, subjects },
+      updateData,
       { new: true }
     );
     
@@ -219,6 +273,7 @@ exports.updateClass = async (req, res) => {
       return res.status(404).json({ message: 'Classe non trouvée' });
     }
     
+    console.log('✅ Classe mise à jour:', { id: updatedClass._id, name: updatedClass.name, resTeacher: updatedClass.resTeacher });
     res.json(updatedClass);
   } catch (err) {
     res.status(500).json({ message: err.message });

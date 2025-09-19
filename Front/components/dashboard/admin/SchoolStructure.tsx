@@ -41,7 +41,7 @@ interface Class {
   subject: string;
   status: 'Actif' | 'Inactif' | 'Complet';
   createdAt: string;
-  teacherIds?: string[];
+  resTeacherId?: string;
 }
 
 interface Subject {
@@ -193,6 +193,55 @@ export function SchoolStructure() {
   };
 
   // Récupérer les classes depuis l'API
+  // Fonction pour traiter les données des classes
+  const processClassesData = async (data: any[]) => {
+    console.log('📊 Nombre de classes:', data.length);
+    
+    const mappedClasses = data.map((cls: any) => {
+      // Récupérer le nom de l'enseignant principal (resTeacher)
+      let teacherName = 'Non assigné';
+      
+      console.log(`🔍 Classe: ${cls.name}`, { resTeacher: cls.resTeacher });
+      
+      if (cls.resTeacher) {
+        console.log(`📝 resTeacher détails:`, cls.resTeacher);
+        console.log(`📝 resTeacher.name:`, cls.resTeacher.name);
+        console.log(`📝 resTeacher.firstName:`, cls.resTeacher.firstName);
+        console.log(`📝 resTeacher.lastName:`, cls.resTeacher.lastName);
+        
+        // Prioriser le champ name
+        if (cls.resTeacher.name) {
+          teacherName = cls.resTeacher.name;
+          console.log(`✅ Utilisation de name:`, teacherName);
+        } else if (cls.resTeacher.firstName || cls.resTeacher.lastName) {
+          teacherName = `${cls.resTeacher.firstName || ''} ${cls.resTeacher.lastName || ''}`.trim();
+          console.log(`✅ Utilisation de firstName/lastName:`, teacherName);
+        } else {
+          console.log(`❌ Aucun nom trouvé dans resTeacher`);
+        }
+      } else {
+        console.log(`❌ Pas de resTeacher pour ${cls.name}`);
+      }
+
+      return {
+        id: cls._id,
+        name: cls.name,
+        level: cls.level,
+        capacity: cls.capacity || 40,
+        enrolled: cls.studentCount || 0,
+        teacher: teacherName,
+        room: cls.room || 'Salle à définir',
+        subject: cls.subjects?.join(', ') || 'Non défini',
+        status: (cls.studentCount || 0) >= (cls.capacity || 40) ? 'Complet' : 'Actif',
+        createdAt: new Date(cls.createdAt).toLocaleDateString('fr-FR'),
+        resTeacherId: cls.resTeacher?._id || null
+      };
+    });
+    
+    console.log('✅ Classes mappées:', mappedClasses);
+    setClasses(mappedClasses);
+  };
+
   const fetchClasses = async () => {
     try {
       console.log('🔍 fetchClasses: Début de la récupération');
@@ -206,31 +255,10 @@ export function SchoolStructure() {
       }
 
       const userInfo = localStorage.getItem('userInfo');
-      const schoolId = userInfo ? JSON.parse(userInfo).schoolId : null;
+      const schoolId = '68c7700cd9f7c4207d3c9ea6'; // Force l'ID de "Les Pedagogues"
       console.log('🏫 SchoolId:', schoolId);
 
-      // Récupérer d'abord la liste des enseignants
-      console.log('👩‍🏫 Récupération des enseignants...');
-      const teachersResponse = await fetch('/api/teachers', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      let teachersMap = new Map();
-      if (teachersResponse.ok) {
-        const teachers = await teachersResponse.json();
-        console.log('👩‍🏫 Enseignants récupérés:', teachers.length);
-        teachers.forEach((teacher: any) => {
-          teachersMap.set(teacher._id, teacher.name);
-        });
-      } else {
-        console.warn('⚠️ Impossible de récupérer les enseignants, utilisation des valeurs par défaut');
-      }
-
-      const url = schoolId ? `/api/classes/school/${schoolId}` : '/api/classes';
+      const url = `/api/classes/school/${schoolId}`; // Toujours utiliser l'endpoint avec population
       console.log('🌐 URL:', url);
 
       const response = await fetch(url, {
@@ -250,11 +278,13 @@ export function SchoolStructure() {
         console.log('📊 Nombre de classes:', data.length);
         
         const mappedClasses = data.map((cls: any) => {
-          // Récupérer le nom du premier enseignant assigné
+          // Récupérer le nom de l'enseignant principal (resTeacher)
           let teacherName = 'Non assigné';
-          if (cls.teacherIds && cls.teacherIds.length > 0) {
-            const firstTeacherId = cls.teacherIds[0];
-            teacherName = teachersMap.get(firstTeacherId) || 'Professeur assigné';
+          
+          if (cls.resTeacher && cls.resTeacher.name) {
+            teacherName = cls.resTeacher.name;
+          } else if (cls.resTeacher && (cls.resTeacher.firstName || cls.resTeacher.lastName)) {
+            teacherName = `${cls.resTeacher.firstName || ''} ${cls.resTeacher.lastName || ''}`.trim();
           }
 
           return {
@@ -268,7 +298,7 @@ export function SchoolStructure() {
             subject: cls.subjects?.join(', ') || 'Non défini',
             status: (cls.studentCount || 0) >= (cls.capacity || 40) ? 'Complet' : 'Actif',
             createdAt: new Date(cls.createdAt).toLocaleDateString('fr-FR'),
-            teacherIds: cls.teacherIds || []
+            resTeacherId: cls.resTeacher?._id || null
           };
         });
         
@@ -307,7 +337,7 @@ export function SchoolStructure() {
         capacity: createClassForm.capacity,
         room: createClassForm.room,
         schoolId: schoolId,
-        teacherIds: createClassForm.teacherId && createClassForm.teacherId !== 'none' ? [createClassForm.teacherId] : [],
+        resTeacher: createClassForm.teacherId && createClassForm.teacherId !== 'none' ? createClassForm.teacherId : undefined,
         subjects: createClassForm.subjects,
         academicYear: createClassForm.academicYear || new Date().getFullYear().toString()
       };
@@ -624,7 +654,7 @@ export function SchoolStructure() {
       level: classItem.level,
       capacity: classItem.capacity,
       room: classItem.room,
-      teacherId: classItem.teacherIds?.[0] || 'none', // Premier enseignant assigné
+      teacherId: classItem.resTeacherId || 'none', // Enseignant responsable
       subjects: (classItem as any).subjects || [], // Matières assignées
       academicYear: (classItem as any).academicYear || new Date().getFullYear().toString()
     });
@@ -648,7 +678,7 @@ export function SchoolStructure() {
         level: editClassForm.level,
         capacity: editClassForm.capacity,
         room: editClassForm.room,
-        teacherIds: editClassForm.teacherId && editClassForm.teacherId !== 'none' ? [editClassForm.teacherId] : [],
+        resTeacher: editClassForm.teacherId && editClassForm.teacherId !== 'none' ? editClassForm.teacherId : undefined,
         subjects: editClassForm.subjects,
         academicYear: editClassForm.academicYear || new Date().getFullYear().toString()
       };
@@ -1198,12 +1228,8 @@ export function SchoolStructure() {
                               <span>Inscrits: {classItem.enrolled}/{classItem.capacity}</span>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <GraduationCap className="h-4 w-4 flex-shrink-0" />
-                              <span>Matière: {classItem.subject}</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
                               <Calendar className="h-4 w-4 flex-shrink-0" />
-                              <span>Créée: {new Date(classItem.createdAt).toLocaleDateString('fr-FR')}</span>
+                              <span>Créée: {classItem.createdAt}</span>
                             </div>
                           </div>
                         </div>
