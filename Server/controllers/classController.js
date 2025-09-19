@@ -283,14 +283,25 @@ exports.updateClass = async (req, res) => {
 // Supprimer une classe
 exports.deleteClass = async (req, res) => {
   try {
-    const deletedClass = await Class.findByIdAndDelete(req.params.id);
+    const classId = req.params.id;
+    const deletedClass = await Class.findByIdAndDelete(classId);
     
     if (!deletedClass) {
       return res.status(404).json({ message: 'Classe non trouvée' });
     }
     
-    res.json({ message: 'Classe supprimée avec succès' });
+    // Mettre à jour les utilisateurs (étudiants) assignés à cette classe
+    // pour les rendre "non assignés"
+    const User = require('../models/User');
+    await User.updateMany(
+      { classId: classId }, 
+      { $unset: { classId: 1 } }
+    );
+    
+    console.log(`Classe ${deletedClass.nom} supprimée. Étudiants remis en "non assignés".`);
+    res.json({ message: 'Classe supprimée avec succès et étudiants remis en "non assignés"' });
   } catch (err) {
+    console.error('Erreur lors de la suppression de la classe:', err);
     res.status(500).json({ message: err.message });
   }
 };

@@ -297,7 +297,7 @@ export function SchoolStructure() {
             room: cls.room || 'Salle à définir',
             subject: cls.subjects?.join(', ') || 'Non défini',
             status: (cls.studentCount || 0) >= (cls.capacity || 40) ? 'Complet' : 'Actif',
-            createdAt: new Date(cls.createdAt).toLocaleDateString('fr-FR'),
+            createdAt: cls.anneeScolaire || cls.academicYear || 'Non définie',
             resTeacherId: cls.resTeacher?._id || null
           };
         });
@@ -1229,7 +1229,7 @@ export function SchoolStructure() {
                             </div>
                             <div className="flex items-center space-x-2">
                               <Calendar className="h-4 w-4 flex-shrink-0" />
-                              <span>Créée: {classItem.createdAt}</span>
+                              <span>Année: {classItem.createdAt}</span>
                             </div>
                           </div>
                         </div>
