@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,6 +77,7 @@ interface ClassAssignment {
 }
 
 export function SchoolStructure() {
+  const { user } = useAuth();
   const [classes, setClasses] = useState<Class[]>([]);
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -123,9 +125,6 @@ export function SchoolStructure() {
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [availableSubjects, setAvailableSubjects] = useState<{ id: string, name: string }[]>([]);
   
-  // État utilisateur
-  const [user, setUser] = useState<any>(null);
-
   // États pour les affectations
   const [unassignedStudents, setUnassignedStudents] = useState<Student[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
@@ -331,7 +330,8 @@ export function SchoolStructure() {
           capacity: 40,
           room: '',
           teacherId: 'none',
-          subjects: []
+          subjects: [],
+          academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1)
         });
         fetchClasses(); // Rafraîchir la liste
       } else {
@@ -522,7 +522,8 @@ export function SchoolStructure() {
   };
 
   // Récupérer les enseignants de l'école de l'admin
-  const fetchSchoolTeachers = async () => {
+  const fetchSchoolTeachers = useCallback(async () => {
+    console.log('🔥🔥🔥 fetchSchoolTeachers: FONCTION APPELÉE 🔥🔥🔥');
     try {
       console.log('👩‍🏫 fetchSchoolTeachers: Début de la récupération');
       setLoadingTeachers(true);
@@ -536,15 +537,18 @@ export function SchoolStructure() {
         return;
       }
 
-      const userInfo = localStorage.getItem('daara_user');
-      const schoolId = userInfo ? JSON.parse(userInfo).schoolId : null;
+      console.log('👤 User object:', user);
+      console.log('🏫 User schoolId:', user?.schoolId);
       
-      if (!schoolId) {
-        console.warn('❌ Aucun schoolId trouvé dans userInfo');
+      if (!user?.schoolId) {
+        console.warn('❌ Aucun schoolId trouvé dans user object');
+        setLoadingTeachers(false);
         return;
       }
 
-      const response = await fetch(`/api/users/teachers/school/${schoolId}`, {
+      console.log('🌐 Fetching teachers from:', `http://localhost:5000/api/teachers`);
+
+      const response = await fetch(`http://localhost:5000/api/teachers`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -556,9 +560,18 @@ export function SchoolStructure() {
       console.log('📡 Response ok:', response.ok);
 
       if (response.ok) {
-        const teachers = await response.json();
-        console.log('👩‍🏫 Enseignants de l\'école récupérés:', teachers.length);
-        setSchoolTeachers(teachers);
+        const allTeachers = await response.json();
+        console.log('👩‍🏫 Tous les enseignants récupérés:', allTeachers.length);
+        console.log('👩‍🏫 Premier enseignant structure:', allTeachers[0]);
+        
+        // Filtrer les enseignants par école
+        const schoolTeachers = allTeachers.filter((teacher: any) => {
+          const teacherSchoolId = typeof teacher.schoolId === 'object' ? teacher.schoolId?._id : teacher.schoolId;
+          return teacherSchoolId === user?.schoolId;
+        });
+        
+        console.log('👩‍🏫 Enseignants de l\'école filtrés:', schoolTeachers.length);
+        setSchoolTeachers(schoolTeachers);
       } else {
         const errorText = await response.text();
         console.error('❌ Erreur API enseignants:', response.status, errorText);
@@ -568,7 +581,7 @@ export function SchoolStructure() {
     } finally {
       setLoadingTeachers(false);
     }
-  };
+  }, [user]);
 
   // Effect pour charger les étudiants non assignés au montage du composant
   useEffect(() => {
@@ -580,15 +593,7 @@ export function SchoolStructure() {
     console.log('📱 localStorage token:', token ? 'PRÉSENT' : 'ABSENT');
     console.log('📱 localStorage userInfo:', userInfo ? JSON.parse(userInfo) : 'ABSENT');
     
-    // Charger les données utilisateur
-    if (userInfo) {
-      try {
-        const userData = JSON.parse(userInfo);
-        setUser(userData);
-      } catch (error) {
-        console.error('❌ Erreur lors du parsing des données utilisateur:', error);
-      }
-    }
+    // Charger les données utilisateur - déjà disponibles via useAuth
     
     if (token) {
       fetchUnassignedStudents();
@@ -598,7 +603,7 @@ export function SchoolStructure() {
     } else {
       console.warn('❌ Aucun token trouvé, impossible de charger les données');
     }
-  }, []);
+  }, [fetchSchoolTeachers]);
 
   const handleViewDetails = (item: Class | Subject) => {
     if ('capacity' in item) {
@@ -620,8 +625,8 @@ export function SchoolStructure() {
       capacity: classItem.capacity,
       room: classItem.room,
       teacherId: classItem.teacherIds?.[0] || 'none', // Premier enseignant assigné
-      subjects: classItem.subjects || [], // Matières assignées
-      academicYear: classItem.academicYear || new Date().getFullYear().toString()
+      subjects: (classItem as any).subjects || [], // Matières assignées
+      academicYear: (classItem as any).academicYear || new Date().getFullYear().toString()
     });
     setIsEditClassOpen(true);
   };

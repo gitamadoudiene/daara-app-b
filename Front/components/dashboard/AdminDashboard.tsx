@@ -340,15 +340,20 @@ export function AdminDashboard() {
       const loadTeachers = async () => {
         try {
           const token = localStorage.getItem('daara_token');
-          const response = await fetch(`http://localhost:5000/api/users/teachers/school/${user?.schoolId}`, {
+          const response = await fetch(`http://localhost:5000/api/teachers`, {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
             }
           });
           if (response.ok) {
-            const data = await response.json();
-            setTeachers(data.map((teacher: any) => ({ id: teacher._id, name: teacher.name })));
+            const allTeachers = await response.json();
+            // Filtrer les enseignants par école
+            const schoolTeachers = allTeachers.filter((teacher: any) => {
+              const teacherSchoolId = typeof teacher.schoolId === 'object' ? teacher.schoolId?._id : teacher.schoolId;
+              return teacherSchoolId === user?.schoolId;
+            });
+            setTeachers(schoolTeachers.map((teacher: any) => ({ id: teacher._id, name: teacher.name })));
           }
         } catch (error) {
           console.error('Erreur lors du chargement des professeurs:', error);
@@ -527,7 +532,8 @@ export function AdminDashboard() {
   };
 
   // Fonction pour créer une classe
-  const handleCreateClass = async (formData) => {
+  const handleCreateClass = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
       const token = localStorage.getItem('daara_token');
       const response = await fetch('http://localhost:5000/api/classes', {
@@ -537,14 +543,14 @@ export function AdminDashboard() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          name: formData.name,
-          level: formData.level,
-          capacity: parseInt(formData.capacity),
-          academicYear: formData.academicYear,
+          name: classForm.name,
+          level: classForm.level,
+          capacity: parseInt(classForm.capacity),
+          academicYear: classForm.academicYear,
           schoolId: user?.schoolId,
-          teacherIds: formData.teacherId && formData.teacherId !== 'none' ? [formData.teacherId] : [], // Professeur titulaire
-          room: formData.room,
-          subjects: formData.subjects // Liste des matières
+          teacherIds: classForm.teacherId && classForm.teacherId !== 'none' ? [classForm.teacherId] : [], // Professeur titulaire
+          room: classForm.room,
+          subjects: classForm.subjects // Liste des matières
         })
       });
 
@@ -1104,7 +1110,7 @@ export function AdminDashboard() {
                               id="class-capacity" 
                               type="number"
                               value={classForm.capacity}
-                              onChange={(e) => setClassForm(prev => ({ ...prev, capacity: parseInt(e.target.value) }))}
+                              onChange={(e) => setClassForm(prev => ({ ...prev, capacity: e.target.value }))}
                               placeholder="40" 
                               required 
                             />
