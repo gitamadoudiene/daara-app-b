@@ -120,6 +120,14 @@ export function SchoolStructure() {
     subjects: [] as string[],
     academicYear: ''
   });
+
+  // État pour le formulaire de création de matière
+  const [createSubjectForm, setCreateSubjectForm] = useState({
+    name: '',
+    code: '',
+    description: '',
+    teacherId: 'none'
+  });
   
   const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
@@ -313,6 +321,66 @@ export function SchoolStructure() {
     }
   };
 
+  // Récupérer les matières depuis l'API
+  const fetchSubjects = async () => {
+    try {
+      console.log('🔍 fetchSubjects: Début de la récupération');
+      
+      const token = localStorage.getItem('daara_token');
+      console.log('🔑 Token:', token ? `${token.substring(0, 20)}...` : 'AUCUN TOKEN');
+      
+      if (!token) {
+        console.warn('❌ Aucun token trouvé');
+        return;
+      }
+
+      const schoolId = '68c7700cd9f7c4207d3c9ea6'; // ID fixe de "Les Pedagogues"
+      console.log('🏫 SchoolId:', schoolId);
+
+      const url = `/api/subjects/school/${schoolId}`;
+      console.log('🌐 URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response ok:', response.ok);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Données matières reçues:', data);
+        console.log('📊 Nombre de matières:', data.length);
+        
+        const mappedSubjects = data.map((subject: any) => ({
+          id: subject._id,
+          name: subject.name,
+          code: subject.code,
+          description: subject.description || '',
+          hours: 0, // Pas dans le modèle actuel
+          teacher: subject.teacherId ? 
+            (subject.teacherId.name || 
+             `${subject.teacherId.firstName || ''} ${subject.teacherId.lastName || ''}`.trim()) 
+            : 'Non assigné',
+          classes: [], // À implémenter si nécessaire
+          status: subject.status
+        }));
+        
+        console.log('✅ Matières mappées:', mappedSubjects);
+        setSubjects(mappedSubjects);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Erreur API matières:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des matières:', error);
+    }
+  };
+
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -374,10 +442,59 @@ export function SchoolStructure() {
     }
   };
 
-  const handleCreateSubject = (e: React.FormEvent) => {
+  const handleCreateSubject = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success('Matière créée avec succès !');
-    setIsCreateSubjectOpen(false);
+    
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        toast.error('Token d\'authentification manquant');
+        return;
+      }
+
+      const schoolId = '68c7700cd9f7c4207d3c9ea6'; // ID fixe de "Les Pedagogues"
+
+      // Préparer les données à envoyer
+      const subjectData = {
+        name: createSubjectForm.name.trim(),
+        code: createSubjectForm.code.trim(),
+        description: createSubjectForm.description.trim(),
+        schoolId,
+        teacherId: createSubjectForm.teacherId === 'none' ? null : createSubjectForm.teacherId
+      };
+
+      console.log('📤 Données matière à envoyer:', subjectData);
+
+      const response = await fetch('/api/subjects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(subjectData)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Matière créée:', result);
+        toast.success('Matière créée avec succès !');
+        setIsCreateSubjectOpen(false);
+        setCreateSubjectForm({
+          name: '',
+          code: '',
+          description: '',
+          teacherId: 'none'
+        });
+        fetchSubjects(); // Rafraîchir la liste
+      } else {
+        const error = await response.json();
+        console.error('❌ Erreur création matière:', error);
+        toast.error(error.message || 'Erreur lors de la création');
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la création:', error);
+      toast.error('Erreur lors de la création de la matière');
+    }
   };
 
   // Fonctions de gestion des affectations
@@ -490,65 +607,6 @@ export function SchoolStructure() {
 
   const getAvailableClasses = () => {
     return classes.filter(c => c.enrolled < c.capacity);
-  };
-
-  // Récupérer les matières depuis l'API
-  const fetchSubjects = async () => {
-    try {
-      console.log('📚 fetchSubjects: Début de la récupération');
-      setLoadingSubjects(true);
-      
-      const token = localStorage.getItem('daara_token');
-      console.log('🔑 Token:', token ? `${token.substring(0, 20)}...` : 'AUCUN TOKEN');
-      
-      if (!token) {
-        console.warn('❌ Aucun token trouvé');
-        setLoadingSubjects(false);
-        return;
-      }
-
-      const response = await fetch('/api/classes/subjects', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response ok:', response.ok);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('📊 Matières reçues:', data);
-        console.log('📊 Nombre de matières:', data.length);
-        
-        // Définir les matières disponibles pour le formulaire
-        setAvailableSubjects(data.map((subject: any) => ({ id: subject._id || subject, name: subject.name || subject })));
-        
-        // Transformer les données en format Subject
-        const mappedSubjects = data.map((subjectName: string, index: number) => ({
-          id: `subject-${index}`,
-          name: subjectName,
-          code: subjectName.substring(0, 3).toUpperCase(),
-          description: `Matière: ${subjectName}`,
-          hours: 4, // Valeur par défaut
-          teacher: 'À assigner',
-          classes: [],
-          status: 'Actif' as const
-        }));
-        
-        console.log('✅ Matières mappées:', mappedSubjects);
-        setSubjects(mappedSubjects);
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Erreur API matières:', response.status, errorText);
-      }
-    } catch (error) {
-      console.error('❌ Erreur lors de la récupération des matières:', error);
-    } finally {
-      setLoadingSubjects(false);
-    }
   };
 
   // Récupérer les enseignants de l'école de l'admin
@@ -1141,23 +1199,51 @@ export function SchoolStructure() {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="subject-name">Nom de la Matière</Label>
-                        <Input id="subject-name" placeholder="Ex: Mathématiques" required />
+                        <Input 
+                          id="subject-name" 
+                          placeholder="Ex: Mathématiques" 
+                          value={createSubjectForm.name}
+                          onChange={(e) => setCreateSubjectForm(prev => ({ ...prev, name: e.target.value }))}
+                          required 
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="subject-code">Code</Label>
-                        <Input id="subject-code" placeholder="Ex: MATH" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="subject-hours">Heures par Semaine</Label>
-                        <Input id="subject-hours" type="number" placeholder="6" required />
+                        <Input 
+                          id="subject-code" 
+                          placeholder="Ex: MATH" 
+                          value={createSubjectForm.code}
+                          onChange={(e) => setCreateSubjectForm(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                          required 
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="subject-teacher">Enseignant Responsable</Label>
-                        <Input id="subject-teacher" placeholder="Nom de l'enseignant" required />
+                        <Select 
+                          value={createSubjectForm.teacherId} 
+                          onValueChange={(value) => setCreateSubjectForm(prev => ({ ...prev, teacherId: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un enseignant (optionnel)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Aucun enseignant assigné</SelectItem>
+                            {schoolTeachers.map((teacher) => (
+                              <SelectItem key={teacher.id} value={teacher.id}>
+                                {teacher.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="lg:col-span-2 space-y-2">
                         <Label htmlFor="subject-description">Description</Label>
-                        <Input id="subject-description" placeholder="Description de la matière" />
+                        <Input 
+                          id="subject-description" 
+                          placeholder="Description de la matière"
+                          value={createSubjectForm.description}
+                          onChange={(e) => setCreateSubjectForm(prev => ({ ...prev, description: e.target.value }))}
+                        />
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 pt-4">
