@@ -21,16 +21,22 @@ const createSubject = async (req, res) => {
     }
 
     // Vérifier si l'enseignant existe (si fourni)
-    if (teacherId) {
+    if (teacherId && teacherId !== null && teacherId !== 'null' && teacherId !== 'none' && teacherId !== '') {
+      console.log('🔍 Vérification enseignant pour création:', { teacherId, schoolId });
       const teacher = await User.findOne({ 
         _id: teacherId, 
         role: 'teacher',
         schoolId: schoolId 
       });
+      console.log('👨‍🏫 Enseignant trouvé pour création:', teacher);
       if (!teacher) {
         return res.status(404).json({ message: 'Enseignant non trouvé dans cette école' });
       }
     }
+
+    // Préparer teacherId pour la création
+    const finalTeacherId = (teacherId && teacherId !== 'null' && teacherId !== 'none' && teacherId !== '') ? teacherId : null;
+    console.log('📝 teacherId final pour création:', finalTeacherId);
 
     // Créer la matière
     const subject = new Subject({
@@ -38,7 +44,7 @@ const createSubject = async (req, res) => {
       code: code.trim().toUpperCase(),
       description: description ? description.trim() : '',
       schoolId,
-      teacherId: teacherId || null
+      teacherId: finalTeacherId
     });
 
     await subject.save();
@@ -115,40 +121,80 @@ const getSubjectById = async (req, res) => {
 // Mettre à jour une matière
 const updateSubject = async (req, res) => {
   try {
+    console.log('🔄 === DÉBUT MODIFICATION MATIÈRE ===');
     const { id } = req.params;
     const { name, code, description, teacherId, status } = req.body;
+    console.log('📝 Données reçues:', { id, name, code, description, teacherId, status });
 
     const subject = await Subject.findById(id);
+    console.log('📚 Matière trouvée:', subject);
+    
     if (!subject) {
+      console.log('❌ Matière non trouvée');
       return res.status(404).json({ message: 'Matière non trouvée' });
     }
 
+    console.log('✅ Matière existante trouvée');
+
     // Vérifier si l'enseignant existe (si fourni)
-    if (teacherId && teacherId !== 'null') {
+    if (teacherId && teacherId !== null && teacherId !== 'null' && teacherId !== '') {
+      console.log('🔍 Vérification enseignant:', { teacherId, schoolId: subject.schoolId });
       const teacher = await User.findOne({ 
         _id: teacherId, 
         role: 'teacher',
         schoolId: subject.schoolId 
       });
+      console.log('👨‍🏫 Enseignant trouvé:', teacher);
       if (!teacher) {
+        console.log('❌ Enseignant non trouvé');
         return res.status(404).json({ message: 'Enseignant non trouvé dans cette école' });
       }
     }
 
-    // Mettre à jour les champs
-    if (name) subject.name = name.trim();
-    if (code) subject.code = code.trim().toUpperCase();
-    if (description !== undefined) subject.description = description.trim();
-    if (teacherId !== undefined) {
-      subject.teacherId = teacherId === 'null' ? null : teacherId;
-    }
-    if (status) subject.status = status;
+    console.log('🔄 Mise à jour des champs...');
 
+    // Mettre à jour les champs
+    if (name) {
+      console.log('📝 Mise à jour nom:', name);
+      subject.name = name.trim();
+    }
+    if (code) {
+      console.log('📝 Mise à jour code:', code);
+      subject.code = code.trim().toUpperCase();
+    }
+    if (description !== undefined) {
+      console.log('📝 Mise à jour description:', description);
+      subject.description = description.trim();
+    }
+    
+    // Gestion spéciale pour teacherId
+    if (teacherId !== undefined) {
+      console.log('📝 Mise à jour teacherId:', { teacherId, type: typeof teacherId });
+      if (teacherId === null || teacherId === 'null' || teacherId === 'none' || teacherId === '') {
+        subject.teacherId = null;
+        console.log('✅ teacherId mis à null');
+      } else {
+        subject.teacherId = teacherId;
+        console.log('✅ teacherId mis à jour:', teacherId);
+      }
+    }
+    
+    if (status) {
+      console.log('📝 Mise à jour status:', status);
+      subject.status = status;
+    }
+
+    console.log('💾 Sauvegarde en cours...');
     await subject.save();
+    console.log('✅ Sauvegarde réussie');
 
     // Populer les données pour la réponse
+    console.log('🔄 Population des données...');
     await subject.populate('teacherId', 'name firstName lastName');
     await subject.populate('schoolId', 'name');
+
+    console.log('📚 Matière finale:', subject);
+    console.log('✅ === MODIFICATION RÉUSSIE ===');
 
     res.json({
       message: 'Matière mise à jour avec succès',
@@ -156,7 +202,9 @@ const updateSubject = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Erreur lors de la mise à jour de la matière:', error);
+    console.error('❌ === ERREUR MODIFICATION MATIÈRE ===');
+    console.error('📝 Erreur détaillée:', error);
+    console.error('📝 Stack trace:', error.stack);
     
     if (error.code === 11000) {
       const duplicateField = Object.keys(error.keyPattern)[0];

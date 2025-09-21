@@ -49,9 +49,8 @@ interface Subject {
   name: string;
   code: string;
   description: string;
-  hours: number;
   teacher: string;
-  classes: string[];
+  teacherId?: string | null; // ID de l'enseignant pour la modification
   status: 'Actif' | 'Inactif';
 }
 
@@ -128,6 +127,20 @@ export function SchoolStructure() {
     description: '',
     teacherId: 'none'
   });
+
+  // États pour la modification des matières
+  const [isEditSubjectOpen, setIsEditSubjectOpen] = useState(false);
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [editSubjectForm, setEditSubjectForm] = useState({
+    name: '',
+    code: '',
+    description: '',
+    teacherId: 'none'
+  });
+
+  // États pour la suppression des matières
+  const [isDeleteSubjectOpen, setIsDeleteSubjectOpen] = useState(false);
+  const [deletingSubject, setDeletingSubject] = useState<Subject | null>(null);
   
   const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
@@ -240,7 +253,7 @@ export function SchoolStructure() {
         teacher: teacherName,
         room: cls.room || 'Salle à définir',
         subject: cls.subjects?.join(', ') || 'Non défini',
-        status: (cls.studentCount || 0) >= (cls.capacity || 40) ? 'Complet' : 'Actif',
+        status: (cls.studentCount || 0) >= (cls.capacity || 40) ? 'Complet' as const : 'Actif' as const,
         createdAt: new Date(cls.createdAt).toLocaleDateString('fr-FR'),
         resTeacherId: cls.resTeacher?._id || null
       };
@@ -361,12 +374,11 @@ export function SchoolStructure() {
           name: subject.name,
           code: subject.code,
           description: subject.description || '',
-          hours: 0, // Pas dans le modèle actuel
           teacher: subject.teacherId ? 
             (subject.teacherId.name || 
              `${subject.teacherId.firstName || ''} ${subject.teacherId.lastName || ''}`.trim()) 
             : 'Non assigné',
-          classes: [], // À implémenter si nécessaire
+          teacherId: subject.teacherId ? subject.teacherId._id : null, // Sauvegarder l'ID de l'enseignant
           status: subject.status
         }));
         
@@ -464,6 +476,10 @@ export function SchoolStructure() {
       };
 
       console.log('📤 Données matière à envoyer:', subjectData);
+      console.log('🔍 teacherId dans le form:', createSubjectForm.teacherId);
+      console.log('🔍 teacherId final:', subjectData.teacherId);
+      console.log('🔍 Type de teacherId:', typeof subjectData.teacherId);
+      console.log('🧑‍🏫 Enseignants disponibles:', schoolTeachers.map(t => ({ id: t._id || t.id, name: t.name })));
 
       const response = await fetch('/api/subjects', {
         method: 'POST',
@@ -495,6 +511,130 @@ export function SchoolStructure() {
       console.error('❌ Erreur lors de la création:', error);
       toast.error('Erreur lors de la création de la matière');
     }
+  };
+
+  // Ouvrir le modal de modification avec les données de la matière
+  const openEditSubject = (subject: Subject) => {
+    setEditingSubject(subject);
+    setEditSubjectForm({
+      name: subject.name,
+      code: subject.code,
+      description: subject.description,
+      teacherId: subject.teacherId || 'none' // Utiliser l'ID directement s'il est disponible
+    });
+    setIsEditSubjectOpen(true);
+  };
+
+  // Fonction pour retrouver l'ID de l'enseignant à partir de son nom
+  const getTeacherIdFromName = (teacherName: string): string | null => {
+    if (teacherName === 'Non assigné') return null;
+    const teacher = schoolTeachers.find(t => t.name === teacherName);
+    return teacher ? (teacher._id || teacher.id) : null;
+  };
+
+  // Modifier une matière
+  const handleEditSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingSubject) return;
+    
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        toast.error('Token d\'authentification manquant');
+        return;
+      }
+
+      // Préparer les données à envoyer
+      const subjectData = {
+        name: editSubjectForm.name.trim(),
+        code: editSubjectForm.code.trim(),
+        description: editSubjectForm.description.trim(),
+        teacherId: editSubjectForm.teacherId === 'none' ? null : editSubjectForm.teacherId
+      };
+
+      console.log('📤 Données matière à modifier:', subjectData);
+
+      const response = await fetch(`/api/subjects/${editingSubject.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(subjectData)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Matière modifiée:', result);
+        toast.success('Matière modifiée avec succès !');
+        setIsEditSubjectOpen(false);
+        setEditingSubject(null);
+        setEditSubjectForm({
+          name: '',
+          code: '',
+          description: '',
+          teacherId: 'none'
+        });
+        fetchSubjects(); // Rafraîchir la liste
+      } else {
+        const error = await response.json();
+        console.error('❌ Erreur modification matière:', error);
+        toast.error(error.message || 'Erreur lors de la modification');
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la modification:', error);
+      toast.error('Erreur lors de la modification de la matière');
+    }
+  };
+
+  // Ouvrir le modal de confirmation de suppression
+  const openDeleteSubject = (subject: Subject) => {
+    setDeletingSubject(subject);
+    setIsDeleteSubjectOpen(true);
+  };
+
+  // Supprimer une matière
+  const handleDeleteSubject = async () => {
+    if (!deletingSubject) return;
+    
+    try {
+      const token = localStorage.getItem('daara_token');
+      if (!token) {
+        toast.error('Token d\'authentification manquant');
+        return;
+      }
+
+      console.log('🗑️ Suppression matière:', deletingSubject.id);
+
+      const response = await fetch(`/api/subjects/${deletingSubject.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        console.log('✅ Matière supprimée');
+        toast.success('Matière supprimée avec succès !');
+        setIsDeleteSubjectOpen(false);
+        setDeletingSubject(null);
+        fetchSubjects(); // Rafraîchir la liste
+      } else {
+        const error = await response.json();
+        console.error('❌ Erreur suppression matière:', error);
+        toast.error(error.message || 'Erreur lors de la suppression');
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la suppression:', error);
+      toast.error('Erreur lors de la suppression de la matière');
+    }
+  };
+
+  // Ouvrir le modal de détails
+  const openSubjectDetails = (subject: Subject) => {
+    setSelectedSubject(subject);
+    setIsViewDetailsOpen(true);
   };
 
   // Fonctions de gestion des affectations
@@ -1229,7 +1369,7 @@ export function SchoolStructure() {
                           <SelectContent>
                             <SelectItem value="none">Aucun enseignant assigné</SelectItem>
                             {schoolTeachers.map((teacher) => (
-                              <SelectItem key={teacher.id} value={teacher.id}>
+                              <SelectItem key={teacher._id || teacher.id} value={teacher._id || teacher.id}>
                                 {teacher.name}
                               </SelectItem>
                             ))}
@@ -1253,6 +1393,193 @@ export function SchoolStructure() {
                       </Button>
                     </div>
                   </form>
+                </DialogContent>
+              </Dialog>
+
+              {/* Modal de modification de matière */}
+              <Dialog open={isEditSubjectOpen} onOpenChange={setIsEditSubjectOpen}>
+                <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="text-lg sm:text-xl">Modifier la Matière</DialogTitle>
+                    <DialogDescription className="text-sm">
+                      Modifier les informations de la matière.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleEditSubject} className="space-y-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-subject-name">Nom de la Matière</Label>
+                        <Input 
+                          id="edit-subject-name" 
+                          placeholder="Ex: Mathématiques" 
+                          value={editSubjectForm.name}
+                          onChange={(e) => setEditSubjectForm(prev => ({ ...prev, name: e.target.value }))}
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-subject-code">Code</Label>
+                        <Input 
+                          id="edit-subject-code" 
+                          placeholder="Ex: MATH" 
+                          value={editSubjectForm.code}
+                          onChange={(e) => setEditSubjectForm(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                          required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-subject-teacher">Enseignant Responsable</Label>
+                        <Select 
+                          value={editSubjectForm.teacherId} 
+                          onValueChange={(value) => setEditSubjectForm(prev => ({ ...prev, teacherId: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un enseignant (optionnel)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Aucun enseignant assigné</SelectItem>
+                            {schoolTeachers.map((teacher) => (
+                              <SelectItem key={teacher._id || teacher.id} value={teacher._id || teacher.id}>
+                                {teacher.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="lg:col-span-2 space-y-2">
+                        <Label htmlFor="edit-subject-description">Description</Label>
+                        <Input 
+                          id="edit-subject-description" 
+                          placeholder="Description de la matière"
+                          value={editSubjectForm.description}
+                          onChange={(e) => setEditSubjectForm(prev => ({ ...prev, description: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                      <Button type="submit" className="flex-1">Modifier Matière</Button>
+                      <Button type="button" variant="outline" onClick={() => setIsEditSubjectOpen(false)} className="flex-1">
+                        Annuler
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
+              {/* Modal de confirmation de suppression de matière */}
+              <Dialog open={isDeleteSubjectOpen} onOpenChange={setIsDeleteSubjectOpen}>
+                <DialogContent className="mx-4 w-[95vw] max-w-md sm:mx-auto sm:w-full">
+                  <DialogHeader>
+                    <DialogTitle className="text-lg sm:text-xl text-red-600">Confirmer la Suppression</DialogTitle>
+                    <DialogDescription className="text-sm">
+                      Êtes-vous sûr de vouloir supprimer cette matière ? Cette action est irréversible.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  {deletingSubject && (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <h4 className="font-semibold text-gray-900 flex items-center">
+                          <GraduationCap className="mr-2 h-5 w-5 text-purple-600" />
+                          {deletingSubject.name}
+                        </h4>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Code: {deletingSubject.code} • Enseignant: {deletingSubject.teacher}
+                        </p>
+                        {deletingSubject.description && (
+                          <p className="text-sm text-gray-600 mt-1">{deletingSubject.description}</p>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Button 
+                          variant="destructive" 
+                          onClick={handleDeleteSubject}
+                          className="flex-1"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Supprimer définitivement
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setIsDeleteSubjectOpen(false)}
+                          className="flex-1"
+                        >
+                          Annuler
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
+
+              {/* Modal de détails de matière */}
+              <Dialog open={isViewDetailsOpen} onOpenChange={setIsViewDetailsOpen}>
+                <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="text-lg sm:text-xl">Détails de la Matière</DialogTitle>
+                    <DialogDescription className="text-sm">
+                      Informations complètes sur la matière.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  {selectedSubject && (
+                    <div className="space-y-6">
+                      <div className="flex items-center space-x-3">
+                        <GraduationCap className="h-8 w-8 text-purple-600" />
+                        <div>
+                          <h3 className="text-xl font-semibold">{selectedSubject.name}</h3>
+                          <Badge variant="outline" className="mt-1">{selectedSubject.code}</Badge>
+                        </div>
+                        <Badge className={getStatusColor(selectedSubject.status)}>
+                          {selectedSubject.status}
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Enseignant Responsable</Label>
+                            <div className="flex items-center mt-1">
+                              <UserCheck className="mr-2 h-4 w-4 text-gray-400" />
+                              <span>{selectedSubject.teacher}</span>
+                            </div>
+                          </div>
+                          
+                          {selectedSubject.description && (
+                            <div>
+                              <Label className="text-sm font-medium text-gray-500">Description</Label>
+                              <div className="flex items-start mt-1">
+                                <BookOpen className="mr-2 h-4 w-4 text-gray-400 mt-0.5" />
+                                <p className="text-sm">{selectedSubject.description}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setIsViewDetailsOpen(false);
+                            openEditSubject(selectedSubject);
+                          }}
+                          className="flex-1"
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Modifier
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setIsViewDetailsOpen(false)}
+                          className="flex-1"
+                        >
+                          Fermer
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </DialogContent>
               </Dialog>
             </div>
@@ -1373,31 +1700,18 @@ export function SchoolStructure() {
                           </Badge>
                         </div>
                         
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-sm text-muted-foreground">
+                        <div className="grid grid-cols-1 lg:grid-cols-1 gap-4 text-sm text-muted-foreground">
                           <div className="space-y-2">
                             <div className="flex items-center space-x-2">
                               <UserCheck className="h-4 w-4 flex-shrink-0" />
                               <span>Enseignant: {subject.teacher}</span>
                             </div>
-                            <div className="flex items-center space-x-2">
-                              <Clock className="h-4 w-4 flex-shrink-0" />
-                              <span>Heures/semaine: {subject.hours}h</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <BookOpen className="h-4 w-4 flex-shrink-0" />
-                              <span>Classes: {subject.classes.length}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <p className="break-words">{subject.description}</p>
-                            <div className="flex flex-wrap gap-1">
-                              {subject.classes.map((className, index) => (
-                                <Badge key={index} variant="secondary" className="text-xs">
-                                  {className}
-                                </Badge>
-                              ))}
-                            </div>
+                            {subject.description && (
+                              <div className="flex items-start space-x-2">
+                                <BookOpen className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                <p className="break-words">{subject.description}</p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1406,7 +1720,7 @@ export function SchoolStructure() {
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => handleViewDetails(subject)}
+                          onClick={() => openSubjectDetails(subject)}
                           className="w-full sm:w-auto"
                         >
                           <Eye className="mr-2 h-4 w-4" />
@@ -1415,10 +1729,20 @@ export function SchoolStructure() {
                         <Button 
                           variant="outline" 
                           size="sm"
+                          onClick={() => openEditSubject(subject)}
                           className="w-full sm:w-auto"
                         >
                           <Edit className="mr-2 h-4 w-4" />
                           Modifier
+                        </Button>
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={() => openDeleteSubject(subject)}
+                          className="w-full sm:w-auto"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Supprimer
                         </Button>
                       </div>
                     </div>
@@ -1608,26 +1932,12 @@ export function SchoolStructure() {
                   <p className="font-medium">{selectedSubject.code}</p>
                 </div>
                 <div>
-                  <Label>Heures par Semaine</Label>
-                  <p className="font-medium">{selectedSubject.hours}h</p>
-                </div>
-                <div>
                   <Label>Enseignant Responsable</Label>
                   <p className="font-medium">{selectedSubject.teacher}</p>
                 </div>
                 <div className="lg:col-span-2">
                   <Label>Description</Label>
                   <p className="font-medium">{selectedSubject.description}</p>
-                </div>
-                <div className="lg:col-span-2">
-                  <Label>Classes Assignées</Label>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {selectedSubject.classes.map((className, index) => (
-                      <Badge key={index} variant="secondary">
-                        {className}
-                      </Badge>
-                    ))}
-                  </div>
                 </div>
                 <div>
                   <Label>Statut</Label>
