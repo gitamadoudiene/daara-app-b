@@ -610,16 +610,45 @@ export function UserOverview() {
     if (name === 'schoolId') {
       console.log('Sélection d\'école:', value);
       
-      // Vider les classes sélectionnées quand on change d'école
+      // Vider les classes et matières sélectionnées quand on change d'école
       setSelectedClasses([]);
+      setSelectedMatieres([]);
       
-      // Si on a sélectionné une école valide, on vérifie son format
+      // Charger les matières de la nouvelle école
       if (value) {
+        const fetchSubjectsForSchool = async () => {
+          try {
+            const token = localStorage.getItem('daara_token');
+            const response = await fetch(`http://localhost:5000/api/subjects/school/${value}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              console.log('Matières de l\'école récupérées:', data);
+              setAvailableSubjects(data);
+            } else {
+              console.error('Erreur lors de la récupération des matières:', response.status);
+              setAvailableSubjects([]);
+            }
+          } catch (err) {
+            console.error('Erreur lors du chargement des matières:', err);
+            setAvailableSubjects([]);
+          }
+        };
+        
+        fetchSubjectsForSchool();
+        
         // Vérifier si l'ID a le bon format pour MongoDB
         const isValidObjectId = value.match(/^[0-9a-fA-F]{24}$/);
         if (!isValidObjectId) {
           console.warn('Format d\'ID d\'école potentiellement invalide:', value);
         }
+      } else {
+        // Vider les matières si aucune école n'est sélectionnée
+        setAvailableSubjects([]);
       }
     }
     
@@ -1179,7 +1208,7 @@ export function UserOverview() {
           >
             <UserPlus className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Ajouter Enseignant</span>
-            <span className="sm:hidden">Ajouter</span>
+            <span className="sm:hidden">Ajouter Enseignant</span>
           </Button>
 
           <Button 
@@ -1188,7 +1217,7 @@ export function UserOverview() {
           >
             <UserPlus className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Ajouter Parent</span>
-            <span className="sm:hidden">Ajouter</span>
+            <span className="sm:hidden">Ajouter Parent</span>
           </Button>
 
           <Button 
@@ -1197,7 +1226,7 @@ export function UserOverview() {
           >
             <UserPlus className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Ajouter Étudiant</span>
-            <span className="sm:hidden">Ajouter</span>
+            <span className="sm:hidden">Ajouter etudiant</span>
           </Button>
         </div>
       </div>
@@ -2107,13 +2136,54 @@ export function UserOverview() {
               </div>
               <div className="space-y-2 lg:col-span-2">
                 <Label>Matières enseignées</Label>
-                <MatiereTagsInput 
-                  value={selectedMatieres} 
-                  onChange={setSelectedMatieres}
-                  matieres={availableSubjects}
-                />
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto border rounded-md p-3">
+                    {availableSubjects && availableSubjects.length > 0 ? (
+                      availableSubjects.map((subject) => (
+                        <label key={subject._id || subject.id || subject.name} className="flex items-center space-x-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedMatieres.includes(subject.name)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedMatieres([...selectedMatieres, subject.name]);
+                              } else {
+                                setSelectedMatieres(selectedMatieres.filter(m => m !== subject.name));
+                              }
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <span className="truncate">{subject.name}</span>
+                        </label>
+                      ))
+                    ) : (
+                      <div className="col-span-full text-center py-4 text-gray-500">
+                        {teacherForm.schoolId 
+                          ? 'Aucune matière disponible pour cette école'
+                          : 'Sélectionnez d\'abord une école pour voir les matières disponibles'
+                        }
+                      </div>
+                    )}
+                  </div>
+                  {selectedMatieres.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {selectedMatieres.map((matiere) => (
+                        <span key={matiere} className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                          {matiere}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedMatieres(selectedMatieres.filter(m => m !== matiere))}
+                            className="ml-1 text-blue-600 hover:text-blue-800"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Ajoutez les matières que l&apos;enseignant va enseigner
+                  Sélectionnez les matières que l&apos;enseignant va enseigner ({selectedMatieres.length} sélectionnée{selectedMatieres.length > 1 ? 's' : ''})
                 </p>
               </div>
               <div className="space-y-2 lg:col-span-2">
