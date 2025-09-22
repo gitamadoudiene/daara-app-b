@@ -207,12 +207,10 @@ export default function ScheduleManagement() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('🔍 DEBUG - Données reçues du serveur:', data);
         
         // Convertir scheduleByDay en array plat
         const schedulesArray: ScheduleItem[] = [];
         Object.entries(data.scheduleByDay).forEach(([day, daySchedules]) => {
-          console.log(`🔍 DEBUG - Jour ${day}:`, daySchedules);
           (daySchedules as any[]).forEach(schedule => {
             schedulesArray.push({
               ...schedule,
@@ -225,7 +223,6 @@ export default function ScheduleManagement() {
           });
         });
         
-        console.log('🔍 DEBUG - Schedules array final:', schedulesArray);
         setSchedules(schedulesArray);
       } else {
         toast.error('Erreur lors du chargement de l\'emploi du temps');
@@ -303,14 +300,12 @@ export default function ScheduleManagement() {
 
       if (response.ok) {
         const responseData = await response.json();
-        console.log('✅ DEBUG - Créneau créé avec succès:', responseData);
         toast.success('Créneau créé avec succès');
         setIsCreateSlotOpen(false);
         resetCreateForm();
         
         // Recharger les données avec un petit délai pour s'assurer que le serveur a terminé
         setTimeout(() => {
-          console.log('🔄 DEBUG - Rechargement des données...');
           loadClassSchedule();
         }, 500);
       } else {
@@ -636,32 +631,10 @@ export default function ScheduleManagement() {
           <CardContent>
             <div className="overflow-x-auto">
               <div className="min-w-[800px]">
-                {/* Grille avec spanning CSS correct pour multi-heures */}
+                {/* Grille d'emploi du temps moderne */}
                 <div className="bg-white rounded-lg border shadow-sm p-4">
-                  <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                    <h3 className="font-medium text-blue-900">Debug Info</h3>
-                    <p className="text-blue-700 text-sm">
-                      Classe sélectionnée: {selectedClass || 'Aucune'}
-                    </p>
-                    <p className="text-blue-700 text-sm">
-                      Nombre de créneaux: {schedules.length}
-                    </p>
-                    {schedules.length > 0 && (
-                      <div className="mt-2">
-                        <p className="text-blue-700 text-sm font-medium">Créneaux trouvés:</p>
-                        {schedules.map((schedule, idx) => (
-                          <div key={idx} className="text-xs text-blue-600 ml-2">
-                            • {schedule.dayOfWeek} - {schedule.startTime}-{schedule.endTime} - {schedule.subject?.name}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <p className="text-center text-gray-500 mb-4">Grille avec spanning CSS correct</p>
-                  
                   {/* En-tête de la grille - largeur adaptative */}
-                  <div className="grid gap-1 mb-2" style={{ gridTemplateColumns: 'auto repeat(6, 1fr)' }}>
+                 <div className="grid gap-4 mb-2" style={{ gridTemplateColumns: 'auto repeat(6, 1fr)' }}>
                     <div className="text-center p-2 bg-gray-100 rounded font-semibold text-sm">Horaires</div>
                     {DAYS_OF_WEEK.map(day => (
                       <div key={day} className="text-center p-2 bg-gray-100 rounded font-semibold text-sm truncate">
@@ -670,12 +643,13 @@ export default function ScheduleManagement() {
                     ))}
                   </div>
 
-                  {/* Grille principale avec CSS Grid */}
+                  {/* Grille principale avec CSS Grid - hauteur cellules augmentée */}
                   <div 
-                    className="grid gap-1 relative"
+                    className="grid gap-4 relative" 
                     style={{
                       gridTemplateColumns: 'auto repeat(6, 1fr)',
-                      gridTemplateRows: `repeat(${DEFAULT_TIME_SLOTS.length}, 60px)`,
+                     gridTemplateRows: `repeat(${DEFAULT_TIME_SLOTS.length}, 90px)`, // Augmenté de 60px à 80px
+                      alignItems: 'stretch',
                     }}
                   >
                     {/* Colonnes des heures */}
@@ -757,18 +731,20 @@ export default function ScheduleManagement() {
                       return (
                         <div
                           key={`schedule-${scheduleIndex}`}
-                          className="group relative rounded-lg cursor-pointer transition-all duration-200 z-10"
+                          className="group relative rounded-lg cursor-pointer transition-all duration-200 z-10 min-w-0"
                           style={{
                             gridColumn: `${dayIndex + 2}`,
                             gridRow: `${startIndex + 1} / span ${spanCount}`,
+                            width: '100%',
+                            margin: '2px', // Force la largeur à 100% de la cellule
                           }}
                           onClick={() => {
                             setEditingSchedule(schedule);
                             setIsEditDialogOpen(true);
                           }}
                         >
-                          {/* Carte moderne avec gradient par matière */}
-                          <div className={`h-full w-full rounded-lg shadow-md hover:shadow-lg transition-all duration-300 p-3 text-white overflow-hidden bg-gradient-to-br ${getSubjectColor(schedule.subject?.name || 'Matière')}`}>
+                          {/* Carte moderne avec gradient par matière - hauteur minimum pour cours courts */}
+                          <div className={`h-full w-full rounded-lg shadow-md hover:shadow-lg transition-all duration-300 p-3 text-white overflow-hidden bg-gradient-to-br ${getSubjectColor(schedule.subject?.name || 'Matière')} flex flex-col`} style={{ minHeight: spanCount === 1 ? '120px' : spanCount === 2 ? '140px' : 'auto' }}>
                             
                             {/* Pattern décoratif */}
                             <div className="absolute inset-0 opacity-10">
@@ -776,61 +752,74 @@ export default function ScheduleManagement() {
                               <div className="absolute bottom-0 left-0 w-8 h-8 bg-white rounded-full transform -translate-x-4 translate-y-4"></div>
                             </div>
                             
-                            {/* Contenu de la carte */}
-                            <div className="relative z-10 h-full flex flex-col">
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex-1 min-w-0">
-                                  <h4 className="font-bold text-sm truncate">
-                                    {schedule.subject?.name || 'Matière'}
-                                  </h4>
-                                  <div className="text-white/80 text-xs">
-                                    {schedule.subject?.code || 'CODE'}
+                            {/* Contenu de la carte avec flexbox optimisé */}
+                            <div className="relative z-10 h-full flex flex-col min-h-0 justify-between">
+                              {/* Contenu principal optimisé pour cours courts */}
+                              <div className="flex-shrink-0">
+                                {/* Header avec matière et durée - espacement réduit pour cours courts */}
+                                <div className={`flex items-start justify-between ${spanCount === 1 ? 'mb-1' : 'mb-2'}`}>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-bold text-sm truncate leading-tight">
+                                      {schedule.subject?.name || 'Matière'}
+                                    </h4>
+                                    {spanCount > 1 && (
+                                      <div className="text-white/80 text-xs truncate">
+                                        {schedule.subject?.code || 'CODE'}
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Badge durée */}
+                                  <div className="bg-white/20 rounded-full px-2 py-1 flex-shrink-0">
+                                    <span className="text-xs font-bold">{spanCount}h</span>
                                   </div>
                                 </div>
                                 
-                                {/* Badge durée */}
-                                <div className="bg-white/20 rounded-full px-2 py-1">
-                                  <span className="text-xs font-bold">{spanCount}h</span>
+                                {/* Horaires */}
+                                <div className={`bg-white/10 rounded p-1 ${spanCount === 1 ? 'mb-1' : 'mb-2'}`}>
+                                  <div className="text-center text-xs font-medium">
+                                    {schedule.startTime} → {schedule.endTime}
+                                  </div>
                                 </div>
+                                
+                                {/* Enseignant - adapté selon la durée */}
+                                {spanCount > 1 && (
+                                  <div className="flex items-center bg-white/10 rounded p-1 mb-2">
+                                    <User className="w-3 h-3 mr-1 flex-shrink-0" />
+                                    <span className="text-xs truncate">
+                                      {schedule.teacher?.name || 'Enseignant'}
+                                    </span>
+                                  </div>
+                                )}
+                                {spanCount === 1 && (
+                                  <div className="text-xs text-white/80 text-center truncate mb-2">
+                                    👤 {schedule.teacher?.name || 'Enseignant'}
+                                  </div>
+                                )}
                               </div>
                               
-                              {/* Horaires */}
-                              <div className="bg-white/10 rounded p-1 mb-2">
-                                <div className="text-center text-xs font-medium">
-                                  {schedule.startTime} → {schedule.endTime}
-                                </div>
-                              </div>
-                              
-                              {/* Enseignant */}
-                              <div className="flex items-center bg-white/10 rounded p-1">
-                                <User className="w-3 h-3 mr-1 flex-shrink-0" />
-                                <span className="text-xs truncate">
-                                  {schedule.teacher?.name || 'Enseignant'}
-                                </span>
-                              </div>
-                              
-                              {/* Actions au survol - style bulle */}
-                              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-1">
+                              {/* Boutons d'action en bas - plus visibles et accessibles */}
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex justify-center gap-2 flex-shrink-0 mt-2">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setEditingSchedule(schedule);
                                     setIsEditDialogOpen(true);
                                   }}
-                                  className="w-7 h-7 bg-white/90 hover:bg-white rounded-full text-gray-700 hover:text-blue-600 flex items-center justify-center shadow-md backdrop-blur-sm transition-all duration-200"
+                                  className="w-8 h-8 bg-white hover:bg-blue-50 rounded-full text-gray-600 hover:text-blue-600 flex items-center justify-center shadow-lg border border-white/50 transition-all duration-200 hover:scale-110"
                                   title="Modifier le cours"
                                 >
-                                  <Edit className="w-3.5 h-3.5" />
+                                  <Edit className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     deleteScheduleSlot(schedule._id!);
                                   }}
-                                  className="w-7 h-7 bg-white/90 hover:bg-white rounded-full text-gray-700 hover:text-red-600 flex items-center justify-center shadow-md backdrop-blur-sm transition-all duration-200"
+                                  className="w-8 h-8 bg-white hover:bg-red-50 rounded-full text-gray-600 hover:text-red-600 flex items-center justify-center shadow-lg border border-white/50 transition-all duration-200 hover:scale-110"
                                   title="Supprimer le cours"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
                             </div>
