@@ -87,6 +87,7 @@ export function AdminDashboard() {
   // États pour les formulaires d'ajout
   const [isCreateParentOpen, setIsCreateParentOpen] = useState(false);
   const [isCreateStudentOpen, setIsCreateStudentOpen] = useState(false);
+  const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
   const [isCreateClassOpen, setIsCreateClassOpen] = useState(false);
   const [classes, setClasses] = useState<{ id: string, name: string, level: string }[]>([]);
   const [parents, setParents] = useState<{ id: string, name: string }[]>([]);
@@ -103,6 +104,17 @@ export function AdminDashboard() {
     profession: '',
     emergencyPhone: '',
     relation: ''
+  });
+
+  const [teacherForm, setTeacherForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    schoolId: user?.schoolId || '',
+    qualification: '',
+    experience: '',
+    specialization: '',
+    subjects: [] as string[]
   });
   
   const [studentForm, setStudentForm] = useState({
@@ -201,7 +213,6 @@ export function AdminDashboard() {
     { id: 'overview', label: 'Vue d\'ensemble', icon: BarChart3 },
     { id: 'users', label: 'Gestion Utilisateurs', icon: Users },
     { id: 'structure', label: 'Classes & Affectation', icon: School },
-    { id: 'reports', label: 'Gestion des Classes', icon: BookOpen },
     { id: 'schedule', label: 'Emploi du Temps', icon: Calendar },
     { id: 'security', label: 'Paramètres Sécurité', icon: Shield },
     { id: 'data', label: 'Gestion Données', icon: Database },
@@ -361,9 +372,10 @@ export function AdminDashboard() {
       };
       
       const loadSubjects = async () => {
+        console.log('🔍 Chargement des matières pour l\'école:', user?.schoolId);
         try {
           const token = localStorage.getItem('daara_token');
-          const response = await fetch('http://localhost:5000/api/classes/subjects', {
+          const response = await fetch(`http://localhost:5000/api/subjects/school/${user.schoolId}`, {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
@@ -371,10 +383,45 @@ export function AdminDashboard() {
           });
           if (response.ok) {
             const data = await response.json();
-            setAvailableSubjects(data.map((subject: any) => ({ id: subject._id || subject, name: subject.name || subject })));
+            console.log('📚 Matières reçues du serveur:', data);
+            setAvailableSubjects(data);
+          } else {
+            console.error('❌ Erreur de réponse du serveur:', response.status);
+            // En cas d'erreur, charger les matières par défaut
+            const defaultSubjects = [
+              { id: 'Mathématiques', name: 'Mathématiques' },
+              { id: 'Français', name: 'Français' },
+              { id: 'Histoire-Géographie', name: 'Histoire-Géographie' },
+              { id: 'Sciences', name: 'Sciences' },
+              { id: 'Anglais', name: 'Anglais' },
+              { id: 'Arts Plastiques', name: 'Arts Plastiques' },
+              { id: 'Éducation Physique', name: 'Éducation Physique' },
+              { id: 'Philosophie', name: 'Philosophie' },
+              { id: 'Physique-Chimie', name: 'Physique-Chimie' },
+              { id: 'Sciences de la Vie et de la Terre', name: 'Sciences de la Vie et de la Terre' },
+              { id: 'Littérature', name: 'Littérature' },
+              { id: 'Économie', name: 'Économie' }
+            ];
+            setAvailableSubjects(defaultSubjects);
           }
         } catch (error) {
           console.error('Erreur lors du chargement des matières:', error);
+          // En cas d'erreur, charger les matières par défaut
+          const defaultSubjects = [
+            { id: 'Mathématiques', name: 'Mathématiques' },
+            { id: 'Français', name: 'Français' },
+            { id: 'Histoire-Géographie', name: 'Histoire-Géographie' },
+            { id: 'Sciences', name: 'Sciences' },
+            { id: 'Anglais', name: 'Anglais' },
+            { id: 'Arts Plastiques', name: 'Arts Plastiques' },
+            { id: 'Éducation Physique', name: 'Éducation Physique' },
+            { id: 'Philosophie', name: 'Philosophie' },
+            { id: 'Physique-Chimie', name: 'Physique-Chimie' },
+            { id: 'Sciences de la Vie et de la Terre', name: 'Sciences de la Vie et de la Terre' },
+            { id: 'Littérature', name: 'Littérature' },
+            { id: 'Économie', name: 'Économie' }
+          ];
+          setAvailableSubjects(defaultSubjects);
         }
       };
       
@@ -446,6 +493,54 @@ export function AdminDashboard() {
     } catch (error) {
       console.error('Erreur:', error);
       toast.error('Erreur lors de la création du parent');
+    }
+  };
+
+  // Fonction pour créer un enseignant
+  const handleCreateTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('daara_token');
+      const response = await fetch('http://localhost:5000/api/teachers', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: teacherForm.name,
+          email: teacherForm.email,
+          phone: teacherForm.phone,
+          schoolId: user?.schoolId, // École verrouillée
+          qualification: teacherForm.qualification,
+          experience: teacherForm.experience,
+          specialization: teacherForm.specialization,
+          subjects: teacherForm.subjects
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`Enseignant créé avec succès! Mot de passe temporaire: ${data.tempPassword}`);
+        setIsCreateTeacherOpen(false);
+        // Reset form
+        setTeacherForm({
+          name: '',
+          email: '',
+          phone: '',
+          schoolId: user?.schoolId || '',
+          qualification: '',
+          experience: '',
+          specialization: '',
+          subjects: []
+        });
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Erreur lors de la création de l\'enseignant');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors de la création de l\'enseignant');
     }
   };
 
@@ -548,7 +643,7 @@ export function AdminDashboard() {
           capacity: parseInt(classForm.capacity),
           academicYear: classForm.academicYear,
           schoolId: user?.schoolId,
-          teacherIds: classForm.teacherId && classForm.teacherId !== 'none' ? [classForm.teacherId] : [], // Professeur titulaire
+          resTeacher: classForm.teacherId && classForm.teacherId !== 'none' ? classForm.teacherId : null, // Professeur principal
           room: classForm.room,
           subjects: classForm.subjects // Liste des matières
         })
@@ -788,7 +883,163 @@ export function AdminDashboard() {
                     Accès rapide aux fonctionnalités principales
                   </CardDescription>
                 </CardHeader>
+
                 <CardContent className="space-y-2 sm:space-y-3">
+                {/* Ajouter Enseignant */}
+                <Dialog open={isCreateTeacherOpen} onOpenChange={setIsCreateTeacherOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start h-auto py-3"
+                      >
+                        <UserPlus className="mr-2 h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">Ajouter Enseignant</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Ajouter un nouvel Enseignant</DialogTitle>
+                        <DialogDescription>
+                          Veuillez remplir les informations de l&apos;enseignant pour {user?.school?.name || 'votre école'}.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form onSubmit={handleCreateTeacher} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="teacher-name">Nom complet</Label>
+                            <Input
+                              id="teacher-name"
+                              value={teacherForm.name}
+                              onChange={(e) => setTeacherForm({...teacherForm, name: e.target.value})}
+                              placeholder="Ex: Cheikh Diop"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="teacher-email">Email</Label>
+                            <Input
+                              id="teacher-email"
+                              type="email"
+                              value={teacherForm.email}
+                              onChange={(e) => setTeacherForm({...teacherForm, email: e.target.value})}
+                              placeholder="exemple@daara.sn"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="teacher-phone">Téléphone</Label>
+                            <Input
+                              id="teacher-phone"
+                              value={teacherForm.phone}
+                              onChange={(e) => setTeacherForm({...teacherForm, phone: e.target.value})}
+                              placeholder="+221 77 123 4567"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="teacher-qualification">Qualification</Label>
+                            <Input
+                              id="teacher-qualification"
+                              value={teacherForm.qualification}
+                              onChange={(e) => setTeacherForm({...teacherForm, qualification: e.target.value})}
+                              placeholder="Ex: Master en Mathématiques"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="teacher-experience">Expérience</Label>
+                            <Input
+                              id="teacher-experience"
+                              value={teacherForm.experience}
+                              onChange={(e) => setTeacherForm({...teacherForm, experience: e.target.value})}
+                              placeholder="Ex: 5 ans d'enseignement"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="teacher-specialization">Spécialisation</Label>
+                            <Input
+                              id="teacher-specialization"
+                              value={teacherForm.specialization}
+                              onChange={(e) => setTeacherForm({...teacherForm, specialization: e.target.value})}
+                              placeholder="Ex: Mathématiques, Sciences"
+                            />
+                          </div>
+                          <div className="md:col-span-2 space-y-2">
+                            <Label>Matières enseignées</Label>
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto border rounded-md p-3">
+                                {availableSubjects && availableSubjects.length > 0 ? (
+                                  availableSubjects.map((subject) => (
+                                    <label key={subject._id || subject.id || subject.name} className="flex items-center space-x-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={teacherForm.subjects.includes(subject.name)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setTeacherForm({
+                                              ...teacherForm, 
+                                              subjects: [...teacherForm.subjects, subject.name]
+                                            });
+                                          } else {
+                                            setTeacherForm({
+                                              ...teacherForm,
+                                              subjects: teacherForm.subjects.filter(s => s !== subject.name)
+                                            });
+                                          }
+                                        }}
+                                        className="rounded border-gray-300"
+                                      />
+                                      <span className="truncate">{subject.name}</span>
+                                    </label>
+                                  ))
+                                ) : (
+                                  <div className="col-span-full text-center py-4 text-gray-500">
+                                    Aucune matière disponible pour cette école
+                                  </div>
+                                )}
+                              </div>
+                              {teacherForm.subjects.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {teacherForm.subjects.map((subject) => (
+                                    <span key={subject} className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                      {subject}
+                                      <button
+                                        type="button"
+                                        onClick={() => setTeacherForm({
+                                          ...teacherForm,
+                                          subjects: teacherForm.subjects.filter(s => s !== subject)
+                                        })}
+                                        className="ml-1 text-blue-600 hover:text-blue-800"
+                                      >
+                                        ×
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Sélectionnez les matières que l&apos;enseignant va enseigner ({teacherForm.subjects.length} sélectionnée{teacherForm.subjects.length > 1 ? 's' : ''})
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>École</Label>
+                            <div className="p-2 bg-gray-50 rounded border">
+                              <span className="text-sm text-gray-600">🏫 {user?.school?.name || 'École non spécifiée'}</span>
+                              <p className="text-xs text-gray-500 mt-1">École verrouillée pour cet administrateur</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-end space-x-2 pt-4">
+                          <Button type="button" variant="outline" onClick={() => setIsCreateTeacherOpen(false)}>
+                            Annuler
+                          </Button>
+                          <Button type="submit">Créer l&apos;Enseignant</Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                {/* fin ajouter Enseignant */}
+
                   <Dialog open={isCreateParentOpen} onOpenChange={setIsCreateParentOpen}>
                     <DialogTrigger asChild>
                       <Button

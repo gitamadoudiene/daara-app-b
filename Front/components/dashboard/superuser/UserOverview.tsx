@@ -98,7 +98,15 @@ export function UserOverview() {
   const [filteredParents, setFilteredParents] = useState<{ id: string, name: string }[]>([]);
   const [parentSearchTerm, setParentSearchTerm] = useState('');
   const [showParentDropdown, setShowParentDropdown] = useState(false);
-  const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<any[]>([]);
+  
+  // États pour le modal de succès de création d'enseignant
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [teacherCredentials, setTeacherCredentials] = useState({
+    email: '',
+    tempPassword: '',
+    teacherName: ''
+  });
   
   // États pour le formulaire d'enseignant
   const [teacherForm, setTeacherForm] = useState({
@@ -158,6 +166,28 @@ export function UserOverview() {
       setError('Vous devez être connecté pour accéder à toutes les fonctionnalités. Certaines données ne seront pas disponibles.');
     }
   }, []);
+
+  // Fonctions pour copier les informations de connexion
+  const copyToClipboard = async (text: string, type: 'email' | 'password') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${type === 'email' ? 'Email' : 'Mot de passe'} copié dans le presse-papier !`);
+    } catch (error) {
+      console.error('Erreur lors de la copie:', error);
+      toast.error('Erreur lors de la copie dans le presse-papier');
+    }
+  };
+
+  const copyLoginInfo = async () => {
+    const loginInfo = `Email: ${teacherCredentials.email}\nMot de passe: ${teacherCredentials.tempPassword}`;
+    try {
+      await navigator.clipboard.writeText(loginInfo);
+      toast.success('Informations de connexion copiées !');
+    } catch (error) {
+      console.error('Erreur lors de la copie:', error);
+      toast.error('Erreur lors de la copie dans le presse-papier');
+    }
+  };
 
   // Fonction pour récupérer les écoles depuis l'API
   useEffect(() => {
@@ -1138,13 +1168,16 @@ export function UserOverview() {
       setSelectedMatieres([]);
       setSelectedClasses([]);
       
-      setSuccessMessage(`Enseignant créé avec succès! Un mot de passe temporaire a été généré: ${data.tempPassword}`);
+      // Préparer les données pour le modal de succès
+      setTeacherCredentials({
+        email: teacherForm.email,
+        tempPassword: data.tempPassword || 'Mot de passe non fourni',
+        teacherName: teacherForm.name
+      });
       
-      // Fermer le modal après 3 secondes
-      setTimeout(() => {
-        setIsCreateTeacherOpen(false);
-        setSuccessMessage(null);
-      }, 3000);
+      // Fermer le modal de création et ouvrir le modal de succès
+      setIsCreateTeacherOpen(false);
+      setIsSuccessModalOpen(true);
       
     } catch (error) {
       console.error('Erreur:', error);
@@ -2276,6 +2309,97 @@ export function UserOverview() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de succès après création d'enseignant */}
+      <Dialog open={isSuccessModalOpen} onOpenChange={setIsSuccessModalOpen}>
+        <DialogContent className="mx-4 w-[95vw] max-w-lg sm:mx-auto sm:w-full">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2 text-green-600">
+              <UserCheck className="h-6 w-6" />
+              <span>Enseignant créé avec succès !</span>
+            </DialogTitle>
+            <DialogDescription>
+              Le compte enseignant a été créé. Voici les informations de connexion :
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Informations de l'enseignant */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h3 className="font-semibold text-green-800 mb-2">
+                Compte créé pour : {teacherCredentials.teacherName}
+              </h3>
+              
+              {/* Email */}
+              <div className="space-y-2 mb-4">
+                <Label className="text-sm font-medium text-green-700">Email de connexion :</Label>
+                <div className="flex items-center space-x-2">
+                  <div className="flex-1 p-2 bg-white border rounded-md text-sm font-mono">
+                    {teacherCredentials.email}
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => copyToClipboard(teacherCredentials.email, 'email')}
+                    className="shrink-0"
+                  >
+                    <Mail className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Mot de passe temporaire */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-green-700">Mot de passe temporaire :</Label>
+                <div className="flex items-center space-x-2">
+                  <div className="flex-1 p-2 bg-white border rounded-md text-sm font-mono">
+                    {teacherCredentials.tempPassword}
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => copyToClipboard(teacherCredentials.tempPassword, 'password')}
+                    className="shrink-0"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Instructions */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-semibold text-blue-800 mb-2">Instructions importantes :</h4>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• L&apos;enseignant devra changer ce mot de passe lors de sa première connexion</li>
+                <li>• Ces informations lui permettront d&apos;accéder à son tableau de bord</li>
+                <li>• Assurez-vous de lui transmettre ces informations de façon sécurisée</li>
+              </ul>
+            </div>
+
+            {/* Boutons d'action */}
+            <div className="flex flex-col sm:flex-row gap-2 pt-4">
+              <Button 
+                onClick={copyLoginInfo}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                <Mail className="mr-2 h-4 w-4" />
+                Copier toutes les informations
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setIsSuccessModalOpen(false);
+                  setTeacherCredentials({ email: '', tempPassword: '', teacherName: '' });
+                }}
+                className="flex-1"
+              >
+                Fermer
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
