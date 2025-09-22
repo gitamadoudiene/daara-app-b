@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { 
   Calendar,
   Clock,
@@ -16,153 +16,295 @@ import {
   User,
   Plus,
   Edit,
-  Trash2
+  Trash2,
+  GraduationCap,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  School,
+  Users,
+  Eye,
+  Settings,
+  Save,
+  RotateCcw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 
-interface TimeSlot {
-  id: string;
-  time: string;
-  subject: string;
-  teacher: string;
-  classroom?: string;
-}
-
-interface Schedule {
-  _id: string;
-  className: string;
-  day: string;
-  timeSlots: TimeSlot[];
+// Types et interfaces
+interface ScheduleItem {
+  _id?: string;
+  schoolId: string;
+  classId: string;
+  subjectId: string;
+  teacherId: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  room: string;
+  semester: string;
+  duration: number;
+  subject: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  teacher: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  class: {
+    _id: string;
+    name: string;
+    level: string;
+  };
 }
 
 interface Class {
   _id: string;
   name: string;
   level: string;
+  room: string;
+  studentCount: number;
+}
+
+interface Subject {
+  _id: string;
+  name: string;
+  code: string;
+  description: string;
 }
 
 interface Teacher {
   _id: string;
   name: string;
+  email: string;
   subjects: string[];
 }
 
-export function ScheduleManagement() {
+interface TeacherAvailability {
+  teacher: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  isAvailable: boolean;
+  conflicts?: any[];
+}
+
+interface TimeSlotCreation {
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+}
+
+const DAYS_OF_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+
+// Heures par défaut (peut être personnalisé)
+const DEFAULT_TIME_SLOTS = [
+  '08:00', '09:00', '10:00', '11:00', '12:00', 
+  '14:00', '15:00', '16:00', '17:00'
+];
+
+export default function ScheduleManagement() {
   const { user } = useAuth();
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  
+  // États principaux
   const [selectedClass, setSelectedClass] = useState<string>('');
-  const [isCreateScheduleOpen, setIsCreateScheduleOpen] = useState(false);
+  const [selectedSemester, setSelectedSemester] = useState<string>('2024-2025');
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const [scheduleForm, setScheduleForm] = useState({
-    className: '',
-    day: '',
-    time: '',
-    subject: '',
-    teacher: '',
-    classroom: ''
-  });
+  // États pour la création de créneaux
+  const [isCreateSlotOpen, setIsCreateSlotOpen] = useState(false);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlotCreation | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedTeacher, setSelectedTeacher] = useState<string>('');
+  const [startTime, setStartTime] = useState<string>('');
+  const [endTime, setEndTime] = useState<string>('');
+  const [room, setRoom] = useState<string>('');
+  const [availableTeachers, setAvailableTeachers] = useState<TeacherAvailability[]>([]);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
 
-  const daysOfWeek = [
-    'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'
-  ];
+  // États pour l'édition
+  const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const timeSlots = [
-    '08:00 - 09:00', '09:00 - 10:00', '10:00 - 11:00', '11:00 - 12:00',
-    '14:00 - 15:00', '15:00 - 16:00', '16:00 - 17:00', '17:00 - 18:00'
-  ];
-
-  const subjects = [
-    'Mathématiques', 'Français', 'Sciences', 'Histoire-Géographie', 
-    'Anglais', 'Arts', 'Éducation Physique', 'Informatique'
-  ];
-
-  // Charger les données
-  useEffect(() => {
-    if (user?.schoolId) {
-      fetchClasses();
-      fetchTeachers();
-      fetchSchedules();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.schoolId]);
-
-  const fetchClasses = async () => {
+  // Charger les classes de l'école de l'admin
+  const loadClasses = useCallback(async () => {
+    if (!user?.schoolId) return;
+    
     try {
       const token = localStorage.getItem('daara_token');
-      const response = await fetch(`http://localhost:5000/api/classes/school/${user?.schoolId}`, {
+      const response = await fetch(`http://localhost:5000/api/classes/school/${user.schoolId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
+
       if (response.ok) {
         const data = await response.json();
         setClasses(data);
+      } else {
+        toast.error('Erreur lors du chargement des classes');
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des classes:', error);
+      console.error('Erreur:', error);
+      toast.error('Erreur lors du chargement des classes');
     }
-  };
+  }, [user?.schoolId]);
 
-  const fetchTeachers = async () => {
+  // Charger les matières de l'école
+  const loadSubjects = useCallback(async () => {
+    if (!user?.schoolId) return;
+    
     try {
       const token = localStorage.getItem('daara_token');
-      const response = await fetch('http://localhost:5000/api/users/teachers', {
+      const response = await fetch(`http://localhost:5000/api/subjects/school/${user.schoolId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
+
       if (response.ok) {
         const data = await response.json();
-        // Filtrer les enseignants de l'école
-        const schoolTeachers = data.filter((teacher: any) => teacher.schoolId === user?.schoolId);
-        setTeachers(schoolTeachers);
+        setSubjects(data);
+      } else {
+        toast.error('Erreur lors du chargement des matières');
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des enseignants:', error);
+      console.error('Erreur:', error);
+      toast.error('Erreur lors du chargement des matières');
+    }
+  }, [user?.schoolId]);
+
+  // Charger l'emploi du temps d'une classe
+  const loadClassSchedule = useCallback(async () => {
+    if (!selectedClass) {
+      setSchedules([]);
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('daara_token');
+      const response = await fetch(
+        `http://localhost:5000/api/schedules/class/${selectedClass}?semester=${selectedSemester}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        // Convertir scheduleByDay en array plat
+        const schedulesArray: ScheduleItem[] = [];
+        Object.entries(data.scheduleByDay).forEach(([day, daySchedules]) => {
+          (daySchedules as ScheduleItem[]).forEach(schedule => {
+            schedulesArray.push({
+              ...schedule,
+              dayOfWeek: day
+            });
+          });
+        });
+        setSchedules(schedulesArray);
+      } else {
+        toast.error('Erreur lors du chargement de l\'emploi du temps');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors du chargement de l\'emploi du temps');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedClass, selectedSemester]);
+
+  // Vérifier la disponibilité des enseignants
+  const checkTeacherAvailability = async (timeSlot: TimeSlotCreation, subjectId: string) => {
+    if (!selectedClass || !subjectId) return;
+    
+    setCheckingAvailability(true);
+    try {
+      const token = localStorage.getItem('daara_token');
+      const response = await fetch(
+        `http://localhost:5000/api/schedules/availability/check?` + 
+        `dayOfWeek=${timeSlot.dayOfWeek}&startTime=${timeSlot.startTime}&endTime=${timeSlot.endTime}&` +
+        `classId=${selectedClass}&subjectId=${subjectId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableTeachers(data.availableTeachers);
+      } else {
+        toast.error('Erreur lors de la vérification des disponibilités');
+        setAvailableTeachers([]);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors de la vérification des disponibilités');
+      setAvailableTeachers([]);
+    } finally {
+      setCheckingAvailability(false);
     }
   };
 
-  const fetchSchedules = async () => {
-    // Pour l'instant, on utilise des données mock
-    // Dans une vraie application, on ferait un appel API
-    setSchedules([]);
-  };
+  // Créer un nouveau créneau
+  const createScheduleSlot = async () => {
+    if (!selectedClass || !selectedSubject || !selectedTeacher || !selectedTimeSlot) {
+      toast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
 
-  const handleCreateSchedule = async (e: React.FormEvent) => {
-    e.preventDefault();
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      // Simuler la création d'emploi du temps
-      const newSchedule = {
-        id: Date.now().toString(),
-        className: scheduleForm.className,
-        day: scheduleForm.day,
-        time: scheduleForm.time,
-        subject: scheduleForm.subject,
-        teacher: scheduleForm.teacher,
-        classroom: scheduleForm.classroom
-      };
-
-      toast.success('Créneau ajouté à l\'emploi du temps');
-      setIsCreateScheduleOpen(false);
-      
-      // Reset form
-      setScheduleForm({
-        className: '',
-        day: '',
-        time: '',
-        subject: '',
-        teacher: '',
-        classroom: ''
+      const token = localStorage.getItem('daara_token');
+      const response = await fetch('http://localhost:5000/api/schedules', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          classId: selectedClass,
+          subjectId: selectedSubject,
+          teacherId: selectedTeacher,
+          dayOfWeek: selectedTimeSlot.dayOfWeek,
+          startTime: selectedTimeSlot.startTime,
+          endTime: selectedTimeSlot.endTime,
+          room: room || 'Salle à définir',
+          semester: selectedSemester
+        })
       });
-      
+
+      if (response.ok) {
+        toast.success('Créneau créé avec succès');
+        setIsCreateSlotOpen(false);
+        resetCreateForm();
+        loadClassSchedule();
+      } else {
+        const errorData = await response.json();
+        if (response.status === 409) {
+          // Conflit détecté
+          toast.error(`Conflit détecté: ${errorData.conflicts[0]?.message}`);
+        } else {
+          toast.error(errorData.message || 'Erreur lors de la création du créneau');
+        }
+      }
     } catch (error) {
       console.error('Erreur:', error);
       toast.error('Erreur lors de la création du créneau');
@@ -171,272 +313,464 @@ export function ScheduleManagement() {
     }
   };
 
-  const getScheduleForClass = (className: string) => {
-    return schedules.filter(schedule => schedule.className === className);
+  // Réinitialiser le formulaire de création
+  const resetCreateForm = () => {
+    setSelectedSubject('');
+    setSelectedTeacher('');
+    setStartTime('');
+    setEndTime('');
+    setRoom('');
+    setSelectedTimeSlot(null);
+    setAvailableTeachers([]);
   };
+
+  // Supprimer un créneau
+  const deleteScheduleSlot = async (scheduleId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce créneau ?')) return;
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('daara_token');
+      const response = await fetch(`http://localhost:5000/api/schedules/${scheduleId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        toast.success('Créneau supprimé avec succès');
+        loadClassSchedule();
+      } else {
+        toast.error('Erreur lors de la suppression du créneau');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors de la suppression du créneau');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Ouvrir le dialog de création pour un créneau spécifique
+  const handleTimeSlotClick = (day: string, time: string) => {
+    const endTimeCalc = calculateEndTime(time, 60); // 1h par défaut
+    const timeSlot: TimeSlotCreation = {
+      dayOfWeek: day,
+      startTime: time,
+      endTime: endTimeCalc,
+      duration: 60
+    };
+    
+    setSelectedTimeSlot(timeSlot);
+    setStartTime(time);
+    setEndTime(endTimeCalc);
+    setIsCreateSlotOpen(true);
+  };
+
+  // Calculer l'heure de fin en fonction de la durée
+  const calculateEndTime = (startTime: string, durationMinutes: number): string => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startMinutes = hours * 60 + minutes;
+    const endMinutes = startMinutes + durationMinutes;
+    const endHours = Math.floor(endMinutes / 60);
+    const endMins = endMinutes % 60;
+    
+    return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+  };
+
+  // Calculer la durée en minutes entre deux heures
+  const calculateDuration = (startTime: string, endTime: string): number => {
+    const [startHours, startMinutes] = startTime.split(':').map(Number);
+    const [endHours, endMinutes] = endTime.split(':').map(Number);
+    
+    const startTotalMinutes = startHours * 60 + startMinutes;
+    const endTotalMinutes = endHours * 60 + endMinutes;
+    
+    return endTotalMinutes - startTotalMinutes;
+  };
+
+  // Obtenir les créneaux pour un jour et une heure spécifiques
+  const getScheduleForSlot = (day: string, time: string): ScheduleItem | null => {
+    return schedules.find(schedule => 
+      schedule.dayOfWeek === day && 
+      schedule.startTime === time
+    ) || null;
+  };
+
+  // Effet pour charger les données initiales
+  useEffect(() => {
+    if (user?.schoolId) {
+      loadClasses();
+      loadSubjects();
+    }
+  }, [user, loadClasses, loadSubjects]);
+
+  // Effet pour charger l'emploi du temps quand la classe change
+  useEffect(() => {
+    loadClassSchedule();
+  }, [loadClassSchedule]);
+
+  // Effet pour vérifier la disponibilité quand les paramètres changent
+  useEffect(() => {
+    if (selectedTimeSlot && selectedSubject) {
+      checkTeacherAvailability(selectedTimeSlot, selectedSubject);
+    }
+  }, [selectedTimeSlot, selectedSubject]);
+
+  // Mettre à jour la durée quand les heures changent
+  useEffect(() => {
+    if (startTime && endTime && selectedTimeSlot) {
+      const newDuration = calculateDuration(startTime, endTime);
+      setSelectedTimeSlot({
+        ...selectedTimeSlot,
+        startTime,
+        endTime,
+        duration: newDuration
+      });
+    }
+  }, [startTime, endTime]);
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Veuillez vous connecter pour accéder à cette page.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* En-tête */}
+      <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
         <div>
-          <h2 className="text-2xl font-bold">Emplois du Temps</h2>
+          <h2 className="text-2xl font-bold">Gestion des Emplois du Temps</h2>
           <p className="text-muted-foreground">
-            Gérez les emplois du temps des classes de {user?.school?.name}
+            Créez et gérez les emplois du temps de vos classes
           </p>
         </div>
-        <Dialog open={isCreateScheduleOpen} onOpenChange={setIsCreateScheduleOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Ajouter un créneau
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Ajouter un créneau</DialogTitle>
-              <DialogDescription>
-                Définissez un nouveau créneau dans l&apos;emploi du temps
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateSchedule} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="schedule-class">Classe</Label>
-                  <Select 
-                    value={scheduleForm.className} 
-                    onValueChange={(value) => setScheduleForm({...scheduleForm, className: value})}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner une classe" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls._id} value={cls.name}>
-                          {cls.name} - {cls.level}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+        <div className="flex items-center space-x-2">
+          <Select value={selectedSemester} onValueChange={setSelectedSemester}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="2024-2025">2024-2025</SelectItem>
+              <SelectItem value="2025-2026">2025-2026</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Sélection de la classe */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <School className="h-5 w-5" />
+            Sélectionner une classe
+          </CardTitle>
+          <CardDescription>
+            Choisissez la classe pour laquelle vous souhaitez gérer l'emploi du temps
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Classe</Label>
+              <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une classe" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map((classe) => (
+                    <SelectItem key={classe._id} value={classe._id}>
+                      {classe.name} - {classe.level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedClass && (
+              <div className="md:col-span-2 flex items-center gap-4 pt-6">
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Users className="h-3 w-3" />
+                  {classes.find(c => c._id === selectedClass)?.name}
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedClass('')}
+                  className="flex items-center gap-1"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Changer
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Grille de l'emploi du temps */}
+      {selectedClass && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Emploi du temps - {classes.find(c => c._id === selectedClass)?.name}
+            </CardTitle>
+            <CardDescription>
+              Cliquez sur une case vide pour ajouter un cours
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <div className="min-w-[800px]">
+                {/* En-tête avec les jours */}
+                <div className="grid grid-cols-7 gap-1 mb-2">
+                  <div className="p-3 font-semibold text-center bg-muted rounded-md">
+                    Heures
+                  </div>
+                  {DAYS_OF_WEEK.map((day) => (
+                    <div
+                      key={day}
+                      className="p-3 font-semibold text-center bg-muted rounded-md"
+                    >
+                      {day}
+                    </div>
+                  ))}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="schedule-day">Jour</Label>
-                  <Select 
-                    value={scheduleForm.day} 
-                    onValueChange={(value) => setScheduleForm({...scheduleForm, day: value})}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un jour" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {daysOfWeek.map((day) => (
-                        <SelectItem key={day} value={day}>
-                          {day}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+
+                {/* Grille des créneaux horaires */}
+                <div className="space-y-1">
+                  {DEFAULT_TIME_SLOTS.map((time) => (
+                    <div key={time} className="grid grid-cols-7 gap-1">
+                      {/* Colonne des heures */}
+                      <div className="p-3 text-sm font-medium text-center bg-muted/50 rounded-md flex items-center justify-center">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {time}
+                        </div>
+                      </div>
+
+                      {/* Cases des jours */}
+                      {DAYS_OF_WEEK.map((day) => {
+                        const existingSchedule = getScheduleForSlot(day, time);
+                        
+                        return (
+                          <div
+                            key={`${day}-${time}`}
+                            className={`relative min-h-[80px] p-2 border rounded-md cursor-pointer transition-all duration-200 ${
+                              existingSchedule
+                                ? 'bg-blue-50 border-blue-200 hover:bg-blue-100'
+                                : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                            }`}
+                            onClick={() => !existingSchedule && handleTimeSlotClick(day, time)}
+                          >
+                            {existingSchedule ? (
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <Badge variant="secondary" className="text-xs">
+                                    {existingSchedule.subject.code}
+                                  </Badge>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingSchedule(existingSchedule);
+                                        setIsEditDialogOpen(true);
+                                      }}
+                                      className="h-6 w-6 p-0"
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        deleteScheduleSlot(existingSchedule._id!);
+                                      }}
+                                      className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                <div className="text-xs font-medium text-gray-900">
+                                  {existingSchedule.subject.name}
+                                </div>
+                                <div className="flex items-center gap-1 text-xs text-gray-600">
+                                  <User className="h-3 w-3" />
+                                  {existingSchedule.teacher.name}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {existingSchedule.startTime} - {existingSchedule.endTime}
+                                </div>
+                                {existingSchedule.room && (
+                                  <div className="text-xs text-gray-500">
+                                    📍 {existingSchedule.room}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center h-full text-gray-400">
+                                <div className="text-center">
+                                  <Plus className="h-4 w-4 mx-auto mb-1" />
+                                  <span className="text-xs">Ajouter</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="schedule-time">Horaire</Label>
-                  <Select 
-                    value={scheduleForm.time} 
-                    onValueChange={(value) => setScheduleForm({...scheduleForm, time: value})}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un horaire" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {timeSlots.map((slot) => (
-                        <SelectItem key={slot} value={slot}>
-                          {slot}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="schedule-subject">Matière</Label>
-                  <Select 
-                    value={scheduleForm.subject} 
-                    onValueChange={(value) => setScheduleForm({...scheduleForm, subject: value})}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner une matière" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subjects.map((subject) => (
-                        <SelectItem key={subject} value={subject}>
-                          {subject}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="schedule-teacher">Enseignant</Label>
-                  <Select 
-                    value={scheduleForm.teacher} 
-                    onValueChange={(value) => setScheduleForm({...scheduleForm, teacher: value})}
-                    required
-                  >
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Dialog de création de créneau */}
+      <Dialog open={isCreateSlotOpen} onOpenChange={setIsCreateSlotOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Ajouter un cours
+            </DialogTitle>
+            <DialogDescription>
+              {selectedTimeSlot && (
+                <>Créer un nouveau cours pour le {selectedTimeSlot.dayOfWeek} à {selectedTimeSlot.startTime}</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Horaires */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Heure de début</Label>
+                <Input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Heure de fin</Label>
+                <Input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Durée calculée */}
+            {selectedTimeSlot && selectedTimeSlot.duration > 0 && (
+              <div className="text-sm text-muted-foreground bg-muted/50 p-2 rounded">
+                Durée: {Math.floor(selectedTimeSlot.duration / 60)}h {selectedTimeSlot.duration % 60}min
+              </div>
+            )}
+
+            {/* Matière */}
+            <div className="space-y-2">
+              <Label>Matière *</Label>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une matière" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((subject) => (
+                    <SelectItem key={subject._id} value={subject._id}>
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="h-3 w-3" />
+                        {subject.name} ({subject.code})
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Enseignants disponibles */}
+            {selectedSubject && (
+              <div className="space-y-2">
+                <Label>Enseignant disponible *</Label>
+                {checkingAvailability ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    Vérification des disponibilités...
+                  </div>
+                ) : availableTeachers.length > 0 ? (
+                  <Select value={selectedTeacher} onValueChange={setSelectedTeacher}>
                     <SelectTrigger>
                       <SelectValue placeholder="Sélectionner un enseignant" />
                     </SelectTrigger>
                     <SelectContent>
-                      {teachers.map((teacher) => (
-                        <SelectItem key={teacher._id} value={teacher.name}>
-                          {teacher.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="schedule-classroom">Salle (optionnel)</Label>
-                  <Input
-                    id="schedule-classroom"
-                    value={scheduleForm.classroom}
-                    onChange={(e) => setScheduleForm({...scheduleForm, classroom: e.target.value})}
-                    placeholder="Ex: Salle A1"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsCreateScheduleOpen(false)}>
-                  Annuler
-                </Button>
-                <Button type="submit" disabled={loading}>
-                  Créer le créneau
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">
-            Vue d&apos;ensemble
-          </TabsTrigger>
-          <TabsTrigger value="by-class">
-            Par classe
-          </TabsTrigger>
-          <TabsTrigger value="by-teacher">
-            Par enseignant
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Calendar className="mr-2 h-5 w-5" />
-                  Emplois du temps cette semaine
-                </CardTitle>
-                <CardDescription>
-                  Vue générale des cours programmés
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Calendar className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                  <p>Aucun emploi du temps configuré</p>
-                  <p className="text-sm">Commencez par ajouter des créneaux pour vos classes</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="by-class" className="space-y-4">
-          <div className="grid gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Emplois du temps par classe</CardTitle>
-                <CardDescription>
-                  Sélectionnez une classe pour voir son emploi du temps
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Select value={selectedClass} onValueChange={setSelectedClass}>
-                    <SelectTrigger className="max-w-sm">
-                      <SelectValue placeholder="Choisir une classe" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls._id} value={cls.name}>
-                          {cls.name} - {cls.level}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {selectedClass && (
-                    <div className="mt-6">
-                      <h3 className="text-lg font-semibold mb-4">
-                        Emploi du temps - {selectedClass}
-                      </h3>
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Clock className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                        <p>Aucun cours programmé pour cette classe</p>
-                        <p className="text-sm">Ajoutez des créneaux pour construire l&apos;emploi du temps</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="by-teacher" className="space-y-4">
-          <div className="grid gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Emplois du temps par enseignant</CardTitle>
-                <CardDescription>
-                  Vue des cours assignés aux enseignants
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {teachers.length > 0 ? (
-                    teachers.map((teacher) => (
-                      <div key={teacher._id} className="border rounded-lg p-4">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <User className="h-5 w-5 text-blue-600" />
-                          <div>
-                            <h4 className="font-medium">{teacher.name}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              Matières: {teacher.subjects?.join(', ') || 'Non spécifiées'}
-                            </p>
+                      {availableTeachers.map(({ teacher, isAvailable }) => (
+                        <SelectItem
+                          key={teacher._id}
+                          value={teacher._id}
+                          disabled={!isAvailable}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isAvailable ? (
+                              <CheckCircle className="h-3 w-3 text-green-600" />
+                            ) : (
+                              <XCircle className="h-3 w-3 text-red-600" />
+                            )}
+                            {teacher.name}
                           </div>
-                        </div>
-                        <div className="text-center py-4 text-muted-foreground">
-                          <Clock className="mx-auto h-8 w-8 mb-2 opacity-50" />
-                          <p className="text-sm">Aucun cours assigné</p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <User className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                      <p>Aucun enseignant trouvé</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : selectedSubject ? (
+                  <div className="flex items-center gap-2 text-sm text-amber-600">
+                    <AlertTriangle className="h-4 w-4" />
+                    Aucun enseignant disponible pour ce créneau
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {/* Salle */}
+            <div className="space-y-2">
+              <Label>Salle</Label>
+              <Input
+                placeholder="Ex: Salle A1, Laboratoire..."
+                value={room}
+                onChange={(e) => setRoom(e.target.value)}
+              />
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateSlotOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={createScheduleSlot}
+              disabled={loading || !selectedSubject || !selectedTeacher}
+              className="flex items-center gap-2"
+            >
+              {loading ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

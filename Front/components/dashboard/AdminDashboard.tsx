@@ -56,7 +56,7 @@ import { SecuritySettings } from './admin/SecuritySettings';
 import { DataManagement } from './admin/DataManagement';
 import { SystemSettings } from './admin/SystemSettings';
 import { ClassAssignment } from './admin/ClassAssignment';
-import { ScheduleManagement } from './admin/ScheduleManagement';
+import ScheduleManagement from './admin/ScheduleManagement';
 import { ExamManagement } from './admin/ExamManagement';
 
 type ActivePage = 'overview' | 'users' | 'structure' | 'reports' | 'schedule' | 'security' | 'data' | 'system';
@@ -787,6 +787,8 @@ export function AdminDashboard() {
         );
       case 'reports':
         return <ReportsAnalytics />;
+      case 'schedule':
+        return <ScheduleManagement />;
       case 'security':
         return <SecuritySettings />;
       case 'data':
