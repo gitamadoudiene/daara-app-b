@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
+import ScheduleGrid from './ScheduleGrid';
 
 // Types et interfaces
 interface ScheduleItem {
@@ -206,9 +207,12 @@ export default function ScheduleManagement() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('🔍 DEBUG - Données reçues du serveur:', data);
+        
         // Convertir scheduleByDay en array plat
         const schedulesArray: ScheduleItem[] = [];
         Object.entries(data.scheduleByDay).forEach(([day, daySchedules]) => {
+          console.log(`🔍 DEBUG - Jour ${day}:`, daySchedules);
           (daySchedules as any[]).forEach(schedule => {
             schedulesArray.push({
               ...schedule,
@@ -220,6 +224,8 @@ export default function ScheduleManagement() {
             });
           });
         });
+        
+        console.log('🔍 DEBUG - Schedules array final:', schedulesArray);
         setSchedules(schedulesArray);
       } else {
         toast.error('Erreur lors du chargement de l\'emploi du temps');
@@ -296,10 +302,17 @@ export default function ScheduleManagement() {
       });
 
       if (response.ok) {
+        const responseData = await response.json();
+        console.log('✅ DEBUG - Créneau créé avec succès:', responseData);
         toast.success('Créneau créé avec succès');
         setIsCreateSlotOpen(false);
         resetCreateForm();
-        loadClassSchedule();
+        
+        // Recharger les données avec un petit délai pour s'assurer que le serveur a terminé
+        setTimeout(() => {
+          console.log('🔄 DEBUG - Rechargement des données...');
+          loadClassSchedule();
+        }, 500);
       } else {
         const errorData = await response.json();
         if (response.status === 409) {
@@ -434,6 +447,67 @@ export default function ScheduleManagement() {
     return hours * 60 + minutes;
   };
 
+  // Fonction pour obtenir la couleur d'une matière
+  const getSubjectColor = (subjectName: string): string => {
+    const colors = {
+      'Mathématique': 'from-purple-500 to-purple-700',
+      'Mathématiques': 'from-purple-500 to-purple-700',
+      'Français': 'from-blue-500 to-blue-700',
+      'Physique': 'from-green-500 to-green-700',
+      'Physique-Chimie': 'from-emerald-500 to-emerald-700',
+      'Chimie': 'from-teal-500 to-teal-700',
+      'Histoire': 'from-amber-500 to-amber-700',
+      'Géographie': 'from-orange-500 to-orange-700',
+      'SVT': 'from-lime-500 to-lime-700',
+      'Sciences': 'from-cyan-500 to-cyan-700',
+      'Anglais': 'from-red-500 to-red-700',
+      'EPS': 'from-pink-500 to-pink-700',
+      'Arts': 'from-violet-500 to-violet-700',
+      'Musique': 'from-indigo-500 to-indigo-700',
+      'Technologie': 'from-gray-500 to-gray-700',
+      'Informatique': 'from-slate-500 to-slate-700',
+      'Philosophie': 'from-stone-500 to-stone-700',
+      'Économie': 'from-yellow-500 to-yellow-700',
+      'Gestion': 'from-rose-500 to-rose-700',
+      'Comptabilité': 'from-fuchsia-500 to-fuchsia-700',
+    };
+
+    // Normaliser le nom de la matière et chercher une correspondance
+    const normalizedName = subjectName?.trim();
+    
+    // Recherche exacte d'abord
+    if (colors[normalizedName]) {
+      return colors[normalizedName];
+    }
+    
+    // Recherche partielle pour les variations
+    const partialMatch = Object.keys(colors).find(key => 
+      normalizedName?.toLowerCase().includes(key.toLowerCase()) || 
+      key.toLowerCase().includes(normalizedName?.toLowerCase())
+    );
+    
+    if (partialMatch) {
+      return colors[partialMatch];
+    }
+    
+    // Couleur par défaut basée sur le hash du nom pour avoir une couleur cohérente
+    const defaultColors = [
+      'from-blue-500 to-blue-700',
+      'from-green-500 to-green-700',
+      'from-purple-500 to-purple-700',
+      'from-orange-500 to-orange-700',
+      'from-teal-500 to-teal-700',
+      'from-pink-500 to-pink-700'
+    ];
+    
+    const hash = normalizedName?.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0) || 0;
+    
+    return defaultColors[Math.abs(hash) % defaultColors.length];
+  };
+
   // Effet pour charger les données initiales
   useEffect(() => {
     if (user?.schoolId) {
@@ -562,134 +636,209 @@ export default function ScheduleManagement() {
           <CardContent>
             <div className="overflow-x-auto">
               <div className="min-w-[800px]">
-                {/* En-tête avec les jours */}
-                <div className="grid grid-cols-7 gap-1 mb-2">
-                  <div className="p-3 font-semibold text-center bg-muted rounded-md">
-                    Heures
-                  </div>
-                  {DAYS_OF_WEEK.map((day) => (
-                    <div
-                      key={day}
-                      className="p-3 font-semibold text-center bg-muted rounded-md"
-                    >
-                      {day}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Grille des créneaux horaires */}
-                <div className="space-y-1">
-                  {DEFAULT_TIME_SLOTS.map((time) => (
-                    <div key={time} className="grid grid-cols-7 gap-1">
-                      {/* Colonne des heures */}
-                      <div className="p-3 text-sm font-medium text-center bg-muted/50 rounded-md flex items-center justify-center">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {time}
-                        </div>
+                {/* Grille avec spanning CSS correct pour multi-heures */}
+                <div className="bg-white rounded-lg border shadow-sm p-4">
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                    <h3 className="font-medium text-blue-900">Debug Info</h3>
+                    <p className="text-blue-700 text-sm">
+                      Classe sélectionnée: {selectedClass || 'Aucune'}
+                    </p>
+                    <p className="text-blue-700 text-sm">
+                      Nombre de créneaux: {schedules.length}
+                    </p>
+                    {schedules.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-blue-700 text-sm font-medium">Créneaux trouvés:</p>
+                        {schedules.map((schedule, idx) => (
+                          <div key={idx} className="text-xs text-blue-600 ml-2">
+                            • {schedule.dayOfWeek} - {schedule.startTime}-{schedule.endTime} - {schedule.subject?.name}
+                          </div>
+                        ))}
                       </div>
+                    )}
+                  </div>
+                  
+                  <p className="text-center text-gray-500 mb-4">Grille avec spanning CSS correct</p>
+                  
+                  {/* En-tête de la grille - largeur adaptative */}
+                  <div className="grid gap-1 mb-2" style={{ gridTemplateColumns: 'auto repeat(6, 1fr)' }}>
+                    <div className="text-center p-2 bg-gray-100 rounded font-semibold text-sm">Horaires</div>
+                    {DAYS_OF_WEEK.map(day => (
+                      <div key={day} className="text-center p-2 bg-gray-100 rounded font-semibold text-sm truncate">
+                        {day}
+                      </div>
+                    ))}
+                  </div>
 
-                      {/* Cases des jours */}
-                      {DAYS_OF_WEEK.map((day) => {
-                        const existingSchedule = getScheduleForSlot(day, time);
-                        const occupyingSchedule = isSlotOccupiedByEarlierSchedule(day, time);
+                  {/* Grille principale avec CSS Grid */}
+                  <div 
+                    className="grid gap-1 relative"
+                    style={{
+                      gridTemplateColumns: 'auto repeat(6, 1fr)',
+                      gridTemplateRows: `repeat(${DEFAULT_TIME_SLOTS.length}, 60px)`,
+                    }}
+                  >
+                    {/* Colonnes des heures */}
+                    {DEFAULT_TIME_SLOTS.map((time, timeIndex) => (
+                      <div 
+                        key={`time-${time}`} 
+                        className="p-2 bg-gray-50 text-center text-sm font-medium flex items-center justify-center rounded"
+                        style={{
+                          gridColumn: '1',
+                          gridRow: `${timeIndex + 1}`
+                        }}
+                      >
+                        {time}
+                      </div>
+                    ))}
+
+                    {/* Cases vides pour les slots disponibles */}
+                    {DAYS_OF_WEEK.map((day, dayIndex) =>
+                      DEFAULT_TIME_SLOTS.map((time, timeIndex) => {
+                        // Vérifier si ce slot est le début d'un cours
+                        const scheduleStartingHere = schedules.find(schedule => 
+                          schedule.dayOfWeek === day && schedule.startTime === time
+                        );
                         
-                        // Si cette case est occupée par un créneau qui commence plus tôt, ne pas l'afficher
-                        if (occupyingSchedule && !existingSchedule) {
+                        // Vérifier si ce slot est occupé par un cours qui a commencé plus tôt
+                        const isOccupiedByEarlierSchedule = schedules.find(schedule => {
+                          const startIndex = DEFAULT_TIME_SLOTS.findIndex(slot => slot === schedule.startTime);
+                          const endIndex = DEFAULT_TIME_SLOTS.findIndex(slot => slot === schedule.endTime);
+                          return schedule.dayOfWeek === day && 
+                                 startIndex <= timeIndex && 
+                                 timeIndex < endIndex &&
+                                 startIndex !== timeIndex; // Pas le slot de démarrage
+                        });
+
+                        // Ne créer que les cases vides (pas occupées)
+                        if (!scheduleStartingHere && !isOccupiedByEarlierSchedule) {
                           return (
                             <div
-                              key={`${day}-${time}`}
-                              className="relative min-h-[80px] bg-blue-50/50 border border-blue-200/50 rounded-md opacity-50"
+                              key={`${day}-${time}-empty`}
+                              className="border border-gray-200 rounded cursor-pointer hover:bg-gray-50 p-2 flex items-center justify-center"
+                              style={{
+                                gridColumn: `${dayIndex + 2}`,
+                                gridRow: `${timeIndex + 1}`,
+                              }}
+                              onClick={() => handleTimeSlotClick(day, time)}
                             >
-                              <div className="flex items-center justify-center h-full text-xs text-blue-600/60">
-                                Occupé par {occupyingSchedule.subject?.name || 'Cours précédent'}
-                              </div>
+                              <div className="text-gray-400 text-xs">+</div>
                             </div>
                           );
                         }
-                        
-                        const spanCount = existingSchedule ? getScheduleSpanCount(existingSchedule) : 1;
-                        
-                        return (
-                          <div
-                            key={`${day}-${time}`}
-                            className={`relative p-2 border rounded-md cursor-pointer transition-all duration-200 ${
-                              existingSchedule
-                                ? 'bg-blue-50 border-blue-200 hover:bg-blue-100'
-                                : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
-                            }`}
-                            style={{
-                              minHeight: existingSchedule ? `${Math.max(80, spanCount * 80)}px` : '80px'
-                            }}
-                            onClick={() => !existingSchedule && handleTimeSlotClick(day, time)}
-                          >
-                            {existingSchedule ? (
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <Badge variant="secondary" className="text-xs">
-                                    {existingSchedule.subject?.code || existingSchedule.subject?.name || 'N/A'}
-                                  </Badge>
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingSchedule(existingSchedule);
-                                        setIsEditDialogOpen(true);
-                                      }}
-                                      className="h-6 w-6 p-0"
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        deleteScheduleSlot(existingSchedule._id!);
-                                      }}
-                                      className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
+                        return null;
+                      })
+                    )}
+
+                    {/* Cartes de cours avec spanning correct */}
+                    {schedules.map((schedule, scheduleIndex) => {
+                      const dayIndex = DAYS_OF_WEEK.findIndex(day => day === schedule.dayOfWeek);
+                      const startIndex = DEFAULT_TIME_SLOTS.findIndex(slot => slot === schedule.startTime);
+                      const endIndex = DEFAULT_TIME_SLOTS.findIndex(slot => slot === schedule.endTime);
+                      
+                      // Correction: pour couvrir jusqu'à l'heure de fin INCLUSE
+                      // Un cours 08:00-11:00 doit couvrir les cases 08:00, 09:00, 10:00 ET la case 11:00
+                      let spanCount;
+                      if (endIndex !== -1 && endIndex > startIndex) {
+                        // Si l'heure de fin existe dans notre grille, on inclut cette case (+1)
+                        spanCount = endIndex - startIndex + 1;
+                      } else {
+                        // Calcul de secours basé sur la durée en heures
+                        const startTime = schedule.startTime.split(':').map(Number);
+                        const endTime = schedule.endTime.split(':').map(Number);
+                        const durationInHours = (endTime[0] + endTime[1]/60) - (startTime[0] + startTime[1]/60);
+                        spanCount = Math.ceil(durationInHours);
+                      }
+
+                      if (dayIndex === -1 || startIndex === -1 || spanCount <= 0) {
+                        return null;
+                      }
+
+                      return (
+                        <div
+                          key={`schedule-${scheduleIndex}`}
+                          className="group relative rounded-lg cursor-pointer transition-all duration-200 z-10"
+                          style={{
+                            gridColumn: `${dayIndex + 2}`,
+                            gridRow: `${startIndex + 1} / span ${spanCount}`,
+                          }}
+                          onClick={() => {
+                            setEditingSchedule(schedule);
+                            setIsEditDialogOpen(true);
+                          }}
+                        >
+                          {/* Carte moderne avec gradient par matière */}
+                          <div className={`h-full w-full rounded-lg shadow-md hover:shadow-lg transition-all duration-300 p-3 text-white overflow-hidden bg-gradient-to-br ${getSubjectColor(schedule.subject?.name || 'Matière')}`}>
+                            
+                            {/* Pattern décoratif */}
+                            <div className="absolute inset-0 opacity-10">
+                              <div className="absolute top-0 right-0 w-10 h-10 bg-white rounded-full transform translate-x-5 -translate-y-5"></div>
+                              <div className="absolute bottom-0 left-0 w-8 h-8 bg-white rounded-full transform -translate-x-4 translate-y-4"></div>
+                            </div>
+                            
+                            {/* Contenu de la carte */}
+                            <div className="relative z-10 h-full flex flex-col">
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-bold text-sm truncate">
+                                    {schedule.subject?.name || 'Matière'}
+                                  </h4>
+                                  <div className="text-white/80 text-xs">
+                                    {schedule.subject?.code || 'CODE'}
                                   </div>
                                 </div>
-                                <div className="text-xs font-medium text-gray-900">
-                                  {existingSchedule.subject?.name || 'Matière'}
-                                </div>
-                                <div className="flex items-center gap-1 text-xs text-gray-600">
-                                  <User className="h-3 w-3" />
-                                  {existingSchedule.teacher?.name || 'Enseignant'}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {existingSchedule.startTime} - {existingSchedule.endTime}
-                                  <span className="ml-2 font-medium text-blue-600">
-                                    ({Math.floor(calculateDuration(existingSchedule.startTime, existingSchedule.endTime) / 60)}h
-                                    {calculateDuration(existingSchedule.startTime, existingSchedule.endTime) % 60 > 0 && 
-                                      ` ${calculateDuration(existingSchedule.startTime, existingSchedule.endTime) % 60}min`
-                                    })
-                                  </span>
-                                </div>
-                                {existingSchedule.room && (
-                                  <div className="text-xs text-gray-500">
-                                    📍 {existingSchedule.room}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-center h-full text-gray-400">
-                                <div className="text-center">
-                                  <Plus className="h-4 w-4 mx-auto mb-1" />
-                                  <span className="text-xs">Ajouter</span>
+                                
+                                {/* Badge durée */}
+                                <div className="bg-white/20 rounded-full px-2 py-1">
+                                  <span className="text-xs font-bold">{spanCount}h</span>
                                 </div>
                               </div>
-                            )}
+                              
+                              {/* Horaires */}
+                              <div className="bg-white/10 rounded p-1 mb-2">
+                                <div className="text-center text-xs font-medium">
+                                  {schedule.startTime} → {schedule.endTime}
+                                </div>
+                              </div>
+                              
+                              {/* Enseignant */}
+                              <div className="flex items-center bg-white/10 rounded p-1">
+                                <User className="w-3 h-3 mr-1 flex-shrink-0" />
+                                <span className="text-xs truncate">
+                                  {schedule.teacher?.name || 'Enseignant'}
+                                </span>
+                              </div>
+                              
+                              {/* Actions au survol - style bulle */}
+                              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingSchedule(schedule);
+                                    setIsEditDialogOpen(true);
+                                  }}
+                                  className="w-7 h-7 bg-white/90 hover:bg-white rounded-full text-gray-700 hover:text-blue-600 flex items-center justify-center shadow-md backdrop-blur-sm transition-all duration-200"
+                                  title="Modifier le cours"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteScheduleSlot(schedule._id!);
+                                  }}
+                                  className="w-7 h-7 bg-white/90 hover:bg-white rounded-full text-gray-700 hover:text-red-600 flex items-center justify-center shadow-md backdrop-blur-sm transition-all duration-200"
+                                  title="Supprimer le cours"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  ))}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
