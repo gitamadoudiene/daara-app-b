@@ -113,7 +113,18 @@ exports.getAllUsers = async (req, res) => {
       .populate('schoolId', 'name')
       .populate('classId', 'name level section')
       .select('-password');
-    res.json(users);
+    
+    // Mapper les données pour la compatibilité frontend
+    const mappedUsers = users.map(user => {
+      const userObj = user.toObject();
+      // Pour les enseignants, mapper subjects[0] vers subject pour la compatibilité
+      if (userObj.role === 'teacher' && userObj.subjects && userObj.subjects.length > 0) {
+        userObj.subject = userObj.subjects[0];
+      }
+      return userObj;
+    });
+    
+    res.json(mappedUsers);
   } catch (err) {
     console.error('Erreur lors de la récupération des utilisateurs:', err);
     res.status(500).json({ message: err.message });

@@ -837,6 +837,9 @@ export function UserManagement() {
                         <div className="flex items-center space-x-2 mt-1">
                           <Badge className={getRoleColor(userItem.role)}>
                             {getRoleLabel(userItem.role)}
+                            {userItem.role === 'teacher' && userItem.subject && (
+                              <span className="ml-1">- {userItem.subject}</span>
+                            )}
                           </Badge>
                           <Badge className={getStatusColor(userItem.status)}>
                             {userItem.status}
@@ -947,6 +950,15 @@ export function UserManagement() {
                       <BookOpen className="w-3 h-3 mr-1" />
                       {selectedUser.classId?.name || selectedUser.class}
                       {selectedUser.classId?.level && ` - ${selectedUser.classId.level}`}
+                    </Badge>
+                  </div>
+                )}
+                {selectedUser.role === 'teacher' && selectedUser.subject && (
+                  <div>
+                    <Label>Matière</Label>
+                    <Badge className="bg-green-100 text-green-800">
+                      <GraduationCap className="w-3 h-3 mr-1" />
+                      {selectedUser.subject}
                     </Badge>
                   </div>
                 )}
