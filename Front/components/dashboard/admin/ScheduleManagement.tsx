@@ -209,10 +209,14 @@ export default function ScheduleManagement() {
         // Convertir scheduleByDay en array plat
         const schedulesArray: ScheduleItem[] = [];
         Object.entries(data.scheduleByDay).forEach(([day, daySchedules]) => {
-          (daySchedules as ScheduleItem[]).forEach(schedule => {
+          (daySchedules as any[]).forEach(schedule => {
             schedulesArray.push({
               ...schedule,
-              dayOfWeek: day
+              dayOfWeek: day,
+              // Mapper les références populées
+              subject: schedule.subjectId || schedule.subject || { name: 'Matière', code: 'N/A' },
+              teacher: schedule.teacherId || schedule.teacher || { name: 'Enseignant', email: '' },
+              class: schedule.classId || schedule.class || { name: 'Classe', level: '' }
             });
           });
         });
@@ -399,6 +403,37 @@ export default function ScheduleManagement() {
     ) || null;
   };
 
+  // Vérifier si une case est occupée par un créneau qui commence plus tôt
+  const isSlotOccupiedByEarlierSchedule = (day: string, time: string): ScheduleItem | null => {
+    const currentTimeMinutes = timeToMinutes(time);
+    
+    // Chercher un créneau qui commence avant cette heure et qui se termine après
+    return schedules.find(schedule => {
+      if (schedule.dayOfWeek !== day) return false;
+      
+      const scheduleStartMinutes = timeToMinutes(schedule.startTime);
+      const scheduleEndMinutes = timeToMinutes(schedule.endTime);
+      
+      return scheduleStartMinutes < currentTimeMinutes && scheduleEndMinutes > currentTimeMinutes;
+    }) || null;
+  };
+
+  // Calculer la hauteur d'un créneau en nombre de cases
+  const getScheduleSpanCount = (schedule: ScheduleItem): number => {
+    const startMinutes = timeToMinutes(schedule.startTime);
+    const endMinutes = timeToMinutes(schedule.endTime);
+    const durationMinutes = endMinutes - startMinutes;
+    
+    // Chaque case représente 1 heure (60 minutes)
+    return Math.ceil(durationMinutes / 60);
+  };
+
+  // Convertir une heure en minutes
+  const timeToMinutes = (time: string): number => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
   // Effet pour charger les données initiales
   useEffect(() => {
     if (user?.schoolId) {
@@ -557,22 +592,42 @@ export default function ScheduleManagement() {
                       {/* Cases des jours */}
                       {DAYS_OF_WEEK.map((day) => {
                         const existingSchedule = getScheduleForSlot(day, time);
+                        const occupyingSchedule = isSlotOccupiedByEarlierSchedule(day, time);
+                        
+                        // Si cette case est occupée par un créneau qui commence plus tôt, ne pas l'afficher
+                        if (occupyingSchedule && !existingSchedule) {
+                          return (
+                            <div
+                              key={`${day}-${time}`}
+                              className="relative min-h-[80px] bg-blue-50/50 border border-blue-200/50 rounded-md opacity-50"
+                            >
+                              <div className="flex items-center justify-center h-full text-xs text-blue-600/60">
+                                Occupé par {occupyingSchedule.subject?.name || 'Cours précédent'}
+                              </div>
+                            </div>
+                          );
+                        }
+                        
+                        const spanCount = existingSchedule ? getScheduleSpanCount(existingSchedule) : 1;
                         
                         return (
                           <div
                             key={`${day}-${time}`}
-                            className={`relative min-h-[80px] p-2 border rounded-md cursor-pointer transition-all duration-200 ${
+                            className={`relative p-2 border rounded-md cursor-pointer transition-all duration-200 ${
                               existingSchedule
                                 ? 'bg-blue-50 border-blue-200 hover:bg-blue-100'
                                 : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
                             }`}
+                            style={{
+                              minHeight: existingSchedule ? `${Math.max(80, spanCount * 80)}px` : '80px'
+                            }}
                             onClick={() => !existingSchedule && handleTimeSlotClick(day, time)}
                           >
                             {existingSchedule ? (
                               <div className="space-y-1">
                                 <div className="flex items-center justify-between">
                                   <Badge variant="secondary" className="text-xs">
-                                    {existingSchedule.subject.code}
+                                    {existingSchedule.subject?.code || existingSchedule.subject?.name || 'N/A'}
                                   </Badge>
                                   <div className="flex items-center gap-1">
                                     <Button
@@ -601,14 +656,20 @@ export default function ScheduleManagement() {
                                   </div>
                                 </div>
                                 <div className="text-xs font-medium text-gray-900">
-                                  {existingSchedule.subject.name}
+                                  {existingSchedule.subject?.name || 'Matière'}
                                 </div>
                                 <div className="flex items-center gap-1 text-xs text-gray-600">
                                   <User className="h-3 w-3" />
-                                  {existingSchedule.teacher.name}
+                                  {existingSchedule.teacher?.name || 'Enseignant'}
                                 </div>
                                 <div className="text-xs text-gray-500">
                                   {existingSchedule.startTime} - {existingSchedule.endTime}
+                                  <span className="ml-2 font-medium text-blue-600">
+                                    ({Math.floor(calculateDuration(existingSchedule.startTime, existingSchedule.endTime) / 60)}h
+                                    {calculateDuration(existingSchedule.startTime, existingSchedule.endTime) % 60 > 0 && 
+                                      ` ${calculateDuration(existingSchedule.startTime, existingSchedule.endTime) % 60}min`
+                                    })
+                                  </span>
                                 </div>
                                 {existingSchedule.room && (
                                   <div className="text-xs text-gray-500">
