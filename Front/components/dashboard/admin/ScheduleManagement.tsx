@@ -105,7 +105,7 @@ const DAYS_OF_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi
 
 // Heures par défaut (peut être personnalisé)
 const DEFAULT_TIME_SLOTS = [
-  '08:00', '09:00', '10:00', '11:00', '12:00', 
+  '08:00', '09:00', '10:00', '11:00', '12:00', '13:00',
   '14:00', '15:00', '16:00', '17:00'
 ];
 
@@ -648,7 +648,7 @@ export default function ScheduleManagement() {
                     className="grid gap-4 relative" 
                     style={{
                       gridTemplateColumns: 'auto repeat(6, 1fr)',
-                     gridTemplateRows: `repeat(${DEFAULT_TIME_SLOTS.length}, 90px)`, // Augmenté de 60px à 80px
+                     gridTemplateRows: `repeat(${DEFAULT_TIME_SLOTS.length}, 100px)`, // Augmenté de 60px à 80px
                       alignItems: 'stretch',
                     }}
                   >
