@@ -1,0 +1,721 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Shield, 
+  Users, 
+  Plus,
+  Mail,
+  Phone,
+  Calendar,
+  Eye,
+  Edit,
+  Trash2,
+  UserPlus,
+  Building2,
+  Search,
+  Filter
+} from 'lucide-react';
+import { toast } from 'sonner';
+
+interface Administrator {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  school: string;
+  schoolId: string;
+  role: 'Principal' | 'Adjoint' | 'Superviseur';
+  status: 'Actif' | 'Inactif' | 'Suspendu';
+  createdAt: string;
+  lastLogin: string;
+  permissions: string[];
+}
+
+interface School {
+  id: string;
+  name: string;
+}
+
+export function AdministratorManagement() {
+  const [isCreateAdminOpen, setIsCreateAdminOpen] = useState(false);
+  const [selectedAdmin, setSelectedAdmin] = useState<Administrator | null>(null);
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
+  const [isEditAdminOpen, setIsEditAdminOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterSchool, setFilterSchool] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+
+  const [schools, setSchools] = useState<School[]>([]);
+  // Récupère les écoles depuis l'API au montage
+  useEffect(() => {
+    fetch('http://localhost:5000/api/school')
+      .then(res => res.json())
+      .then(data => {
+        setSchools(data.map((school: any) => ({ id: school._id, name: school.name })));
+      })
+      .catch(() => setSchools([]));
+  }, []);
+
+    const [administrators, setAdministrators] = useState<Administrator[]>([]);
+    // Récupère les administrateurs depuis l'API au montage
+    useEffect(() => {
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      fetch(`${backendUrl}/api/admin`)
+        .then(res => res.json())
+        .then(data => {
+          setAdministrators(data);
+        })
+        .catch(() => setAdministrators([]));
+    }, []);
+
+  const handleCreateAdmin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get('admin-name')?.toString().trim();
+    const email = formData.get('admin-email')?.toString().trim();
+    const password = formData.get('password')?.toString() || 'password123';
+    const phone = formData.get('admin-phone')?.toString().trim();
+    const role = formData.get('admin-role')?.toString();
+    const school = formData.get('school')?.toString();
+  const permissions = Array.from(formData.getAll('permissions'));
+
+    // Validation des champs
+    if (!name) {
+      toast.error('Le nom complet est obligatoire.');
+      return;
+    }
+    if (!email) {
+      toast.error('L\'email est obligatoire.');
+      return;
+    }
+    const emailRegex = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
+    if (!emailRegex.test(email)) {
+      toast.error('Format d\'email invalide.');
+      return;
+    }
+    if (!password || password.length < 6) {
+      toast.error('Le mot de passe est obligatoire et doit contenir au moins 6 caractères.');
+      return;
+    }
+    if (!phone) {
+      toast.error('Le téléphone est obligatoire.');
+      return;
+    }
+    if (!role) {
+      toast.error('Le rôle est obligatoire.');
+      return;
+    }
+    if (!school) {
+      toast.error('L\'école est obligatoire.');
+      return;
+    }
+
+    const payload = {
+      name,
+      email,
+      password,
+      phone,
+      role,
+      school,
+      permissions
+    };
+    try {
+  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  const res = await fetch(`${backendUrl}/api/admin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        toast.success(`Administrateur créé avec succès ! Mot de passe : ${payload.password}`);
+        setIsCreateAdminOpen(false);
+      } else {
+        const error = await res.json();
+        toast.error(`Erreur: ${error.message || 'Impossible de créer l\'administrateur.'}`);
+      }
+    } catch (err) {
+      toast.error('Erreur réseau ou serveur.');
+    }
+  };
+
+  const handleViewDetails = (admin: Administrator) => {
+    setSelectedAdmin(admin);
+    setIsViewDetailsOpen(true);
+  };
+
+  const handleEditAdmin = (admin: Administrator) => {
+    setSelectedAdmin(admin);
+    setIsEditAdminOpen(true);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Actif': return 'text-green-600 border-green-600';
+      case 'Inactif': return 'text-red-600 border-red-600';
+      case 'Suspendu': return 'text-orange-600 border-orange-600';
+      default: return 'text-gray-600 border-gray-600';
+    }
+  };
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'Principal': return 'bg-blue-100 text-blue-800';
+      case 'Adjoint': return 'bg-green-100 text-green-800';
+      case 'Superviseur': return 'bg-orange-100 text-orange-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Filter administrators based on search and filters
+  const filteredAdministrators = administrators.filter(admin => {
+    const schoolName = typeof admin.school === 'object' && admin.school !== null ? admin.school.name : admin.school;
+    const schoolId = typeof admin.school === 'object' && admin.school !== null ? admin.school._id : admin.schoolId || admin.school;
+    const status = admin.status || (admin.lastLogin ? 'Actif' : 'Inactif');
+    const matchesSearch = (
+      (admin.name && admin.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (admin.email && admin.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (schoolName && schoolName.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    const matchesSchool = filterSchool === '' || schoolId === filterSchool;
+    const matchesStatus = filterStatus === '' || status === filterStatus;
+    return matchesSearch && matchesSchool && matchesStatus;
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold">Gestion des Administrateurs</h2>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            Gérez les administrateurs de toutes les écoles du système DAARA
+          </p>
+        </div>
+        <Dialog open={isCreateAdminOpen} onOpenChange={setIsCreateAdminOpen}>
+          <DialogTrigger asChild>
+            <Button className="w-full sm:w-auto">
+              <UserPlus className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Créer un Administrateur</span>
+              <span className="sm:hidden">Créer Admin</span>
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="mx-4 w-[95vw] max-w-2xl sm:mx-auto sm:w-full max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-lg sm:text-xl">Créer un Nouvel Administrateur</DialogTitle>
+              <DialogDescription className="text-sm">
+                Ajouter un nouvel administrateur et l&apos;assigner à une école.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateAdmin} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="admin-name">Nom Complet</Label>
+                  <Input id="admin-name" name="admin-name" placeholder="Entrez le nom complet" required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-email">Email</Label>
+                  <Input id="admin-email" name="admin-email" type="email" placeholder="email@ecole.sn" required />
+                </div>
+              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-password">Mot de passe</Label>
+                  <Input id="admin-password" name="password" type="text" placeholder="password123" defaultValue="password123" required />
+                </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="admin-phone">Téléphone</Label>
+                  <Input id="admin-phone" name="admin-phone" placeholder="+221-77-XXX-XXXX" required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-role">Rôle</Label>
+                  {/* select supprimé, doublon corrigé */}
+                <select id="admin-role" name="admin-role" className="w-full p-2 border rounded-md" required>
+                    <option value="">Sélectionnez un rôle</option>
+                    <option value="Principal">Principal</option>
+                    <option value="Adjoint">Adjoint</option>
+                    <option value="Superviseur">Superviseur</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="admin-school">Assigner à une École</Label>
+                {/* select supprimé, doublon corrigé */}
+                <select id="admin-school" name="school" className="w-full p-2 border rounded-md" required>
+                  <option value="">Sélectionnez une école</option>
+                  {schools.map((school) => (
+                    <option key={school.id} value={school.id}>
+                      {school.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Permissions</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Gestion complète', 'Rapports', 'Utilisateurs', 'Paramètres'].map((permission) => (
+                    <label key={permission} className="flex items-center space-x-2">
+                      <input type="checkbox" name="permissions" value={permission} className="rounded" />
+                      <span className="text-sm">{permission}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button type="button" variant="outline" onClick={() => setIsCreateAdminOpen(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit">Créer l&apos;Administrateur</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Administrateurs</CardTitle>
+            <Shield className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl sm:text-2xl font-bold">{administrators.length}</div>
+            <p className="text-xs text-muted-foreground">
+              Administrateurs enregistrés
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Actifs</CardTitle>
+            <Users className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl sm:text-2xl font-bold">
+              {administrators.filter(admin => admin.status === 'Actif').length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Administrateurs actifs
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Principaux</CardTitle>
+            <Shield className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl sm:text-2xl font-bold">
+              {administrators.filter(admin => admin.role === 'Principal').length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Directeurs d&apos;école
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Écoles Couvertes</CardTitle>
+            <Building2 className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl sm:text-2xl font-bold">{schools.length}</div>
+            <p className="text-xs text-muted-foreground">
+              Écoles avec administrateurs
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search and Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filtres et Recherche</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="search" className="text-sm">Rechercher</Label>
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  id="search"
+                  placeholder="Nom, email, école..."
+                  className="pl-8 text-sm"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="filter-school" className="text-sm">École</Label>
+              <select 
+                id="filter-school" 
+                className="w-full p-2 border rounded-md text-sm"
+                value={filterSchool}
+                onChange={(e) => setFilterSchool(e.target.value)}
+              >
+                <option value="">Toutes les écoles</option>
+                {schools.map((school) => (
+                  <option key={school.id} value={school.id}>
+                    {school.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="filter-status">Statut</Label>
+              <select 
+                id="filter-status" 
+                className="w-full p-2 border rounded-md"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+              >
+                <option value="">Tous les statuts</option>
+                <option value="Actif">Actif</option>
+                <option value="Inactif">Inactif</option>
+                <option value="Suspendu">Suspendu</option>
+              </select>
+            </div>
+            <div className="flex items-end">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterSchool('');
+                  setFilterStatus('');
+                }}
+              >
+                <Filter className="mr-2 h-4 w-4" />
+                Réinitialiser
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Administrators List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Liste des Administrateurs</CardTitle>
+          <CardDescription>
+            {filteredAdministrators.length} administrateur(s) trouvé(s)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {filteredAdministrators.map((admin) => (
+              <div key={admin.id} className="border rounded-lg p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <Shield className="h-6 w-6 text-blue-600" />
+                      <h3 className="text-xl font-semibold">{admin.name}</h3>
+                      <Badge className={getRoleColor(admin.role)}>
+                        {admin.role}
+                      </Badge>
+                      <Badge variant="outline" className={getStatusColor(admin.status)}>
+                        {admin.status || (admin.lastLogin ? 'Actif' : 'Inactif')}
+                      </Badge>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-muted-foreground">
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Mail className="h-4 w-4" />
+                          <span>{admin.email}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Phone className="h-4 w-4" />
+                          <span>{admin.phone}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Building2 className="h-4 w-4" />
+                          <span>{typeof admin.school === 'object' && admin.school !== null ? admin.school.name : admin.school}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>Créé le: {new Date(admin.createdAt).toLocaleDateString('fr-FR')}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>Dernière connexion: {admin.lastLogin ? new Date(admin.lastLogin).toLocaleDateString('fr-FR') : '-'}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Shield className="h-4 w-4" />
+                          <span>{Array.isArray(admin.permissions) ? admin.permissions.length : 0} permission(s)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleViewDetails(admin)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Voir
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleEditAdmin(admin)}
+                    >
+                      <Edit className="mr-2 h-4 w-4" />
+                      Modifier
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* View Details Dialog */}
+      <Dialog open={isViewDetailsOpen} onOpenChange={setIsViewDetailsOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Détails de l&apos;Administrateur: {selectedAdmin?.name}</DialogTitle>
+            <DialogDescription>
+              Informations détaillées sur l&apos;administrateur
+            </DialogDescription>
+          </DialogHeader>
+          {selectedAdmin && (
+            <Tabs defaultValue="general" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="general">Général</TabsTrigger>
+                <TabsTrigger value="permissions">Permissions</TabsTrigger>
+                <TabsTrigger value="activity">Activité</TabsTrigger>
+              </TabsList>
+              <TabsContent value="general" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Nom Complet</Label>
+                    <p className="font-medium">{selectedAdmin.name}</p>
+                  </div>
+                  <div>
+                    <Label>Rôle</Label>
+                    <Badge className={getRoleColor(selectedAdmin.role)}>{selectedAdmin.role}</Badge>
+                  </div>
+                  <div>
+                    <Label>Email</Label>
+                    <p className="font-medium">{selectedAdmin.email}</p>
+                  </div>
+                  <div>
+                    <Label>Téléphone</Label>
+                    <p className="font-medium">{selectedAdmin.phone}</p>
+                  </div>
+                  <div>
+                    <Label>École Assignée</Label>
+                    <p className="font-medium">{typeof selectedAdmin.school === 'object' && selectedAdmin.school !== null ? selectedAdmin.school.name : selectedAdmin.school}</p>
+                  </div>
+                  <div>
+                    <Label>Statut</Label>
+                    <Badge variant="outline" className={getStatusColor(selectedAdmin.status)}>
+                      {selectedAdmin.status || (selectedAdmin.lastLogin ? 'Actif' : 'Inactif')}
+                    </Badge>
+                  </div>
+                </div>
+              </TabsContent>
+              <TabsContent value="permissions" className="space-y-4">
+                <div>
+                  <Label>Permissions Accordées</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    {Array.isArray(selectedAdmin.permissions) && selectedAdmin.permissions.length > 0 ? (
+                      selectedAdmin.permissions.map((permission) => (
+                        <div key={permission} className="flex items-center space-x-2 p-2 bg-green-50 rounded">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-sm">{permission}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Aucune permission accordée</span>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+              <TabsContent value="activity" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Date de Création</Label>
+                    <p className="font-medium">{new Date(selectedAdmin.createdAt).toLocaleDateString('fr-FR')}</p>
+                  </div>
+                  <div>
+                    <Label>Dernière Connexion</Label>
+                    <p className="font-medium">{selectedAdmin.lastLogin ? new Date(selectedAdmin.lastLogin).toLocaleDateString('fr-FR') : '-'}</p>
+                  </div>
+                </div>
+                <div>
+                  <Label>Activités Récentes</Label>
+                  <div className="space-y-2 mt-2">
+                    <div className="flex items-center space-x-2 p-2 border rounded">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span className="text-sm">Connexion au système - {selectedAdmin.lastLogin ? new Date(selectedAdmin.lastLogin).toLocaleDateString('fr-FR') : '-'}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 p-2 border rounded">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm">Mise à jour des informations d&apos;école</span>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Administrator Dialog */}
+      <Dialog open={isEditAdminOpen} onOpenChange={setIsEditAdminOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Modifier l&apos;Administrateur: {selectedAdmin?.name}</DialogTitle>
+            <DialogDescription>
+              Modifier les informations de l&apos;administrateur
+            </DialogDescription>
+          </DialogHeader>
+          {selectedAdmin && (
+            <form className="space-y-4" onSubmit={async (e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const payload = {
+                name: formData.get('edit-name'),
+                email: formData.get('edit-email'),
+                phone: formData.get('edit-phone'),
+                role: formData.get('edit-role'),
+                school: formData.get('edit-school'),
+                status: formData.get('edit-status'),
+                permissions: Array.from(formData.getAll('edit-permissions')),
+              };
+              const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+              const res = await fetch(`${backendUrl}/api/admin/${selectedAdmin.id || selectedAdmin._id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              if (res.ok) {
+                const updatedAdmin = await res.json();
+                toast.success('Administrateur modifié avec succès');
+                setIsEditAdminOpen(false);
+                // Mise à jour locale de la liste
+                setAdministrators((prev) => prev.map((admin) =>
+                  (admin._id === updatedAdmin._id || admin.id === updatedAdmin._id) ? { ...admin, ...updatedAdmin } : admin
+                ));
+              } else {
+                toast.error('Erreur lors de la modification');
+              }
+            }}>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Nom Complet</Label>
+                  <Input id="edit-name" name="edit-name" defaultValue={selectedAdmin.name} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input id="edit-email" name="edit-email" type="email" defaultValue={selectedAdmin.email} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-phone">Téléphone</Label>
+                  <Input id="edit-phone" name="edit-phone" defaultValue={selectedAdmin.phone} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-role">Rôle</Label>
+                  <select id="edit-role" name="edit-role" className="w-full p-2 border rounded-md" defaultValue={selectedAdmin.role}>
+                    <option value="Principal">Principal</option>
+                    <option value="Adjoint">Adjoint</option>
+                    <option value="Superviseur">Superviseur</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-school">École</Label>
+                  <select id="edit-school" name="edit-school" className="w-full p-2 border rounded-md" defaultValue={typeof selectedAdmin.school === 'object' && selectedAdmin.school !== null ? selectedAdmin.school._id : selectedAdmin.schoolId || selectedAdmin.school}>
+                    {schools.map((school) => (
+                      <option key={school.id} value={school.id}>
+                        {school.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-status">Statut</Label>
+                  <select id="edit-status" name="edit-status" className="w-full p-2 border rounded-md" defaultValue={selectedAdmin.status}>
+                    <option value="Actif">Actif</option>
+                    <option value="Inactif">Inactif</option>
+                    <option value="Suspendu">Suspendu</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Permissions</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Gestion complète', 'Rapports', 'Utilisateurs', 'Paramètres'].map((permission) => (
+                    <label key={permission} className="flex items-center space-x-2">
+                      <input 
+                        type="checkbox" 
+                        name="edit-permissions"
+                        value={permission}
+                        className="rounded" 
+                        defaultChecked={selectedAdmin.permissions.includes(permission)}
+                      />
+                      <span className="text-sm">{permission}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button type="button" variant="outline" onClick={() => setIsEditAdminOpen(false)}>
+                  Annuler
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="destructive"
+                  onClick={async () => {
+                    if (window.confirm('Êtes-vous sûr de vouloir supprimer cet administrateur ?')) {
+                      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+                      const res = await fetch(`${backendUrl}/api/admin/${selectedAdmin.id || selectedAdmin._id}`, {
+                        method: 'DELETE'
+                      });
+                      if (res.ok) {
+                        toast.success('Administrateur supprimé avec succès');
+                        setIsEditAdminOpen(false);
+                        setAdministrators((prev) => prev.filter((admin) => admin._id !== (selectedAdmin.id || selectedAdmin._id)));
+                      } else {
+                        toast.error('Erreur lors de la suppression');
+                      }
+                    }
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Supprimer
+                </Button>
+                <Button 
+                  type="submit"
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Sauvegarder
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
