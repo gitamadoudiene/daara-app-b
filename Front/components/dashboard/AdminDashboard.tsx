@@ -148,7 +148,9 @@ export function AdminDashboard() {
 
   // États pour les listes de données
   const [teachers, setTeachers] = useState<{ id: string, name: string }[]>([]);
-  const [availableSubjects, setAvailableSubjects] = useState<{ id: string, name: string }[]>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<{
+    _id: string; id: string, name: string 
+}[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [rooms] = useState(() => {
@@ -159,16 +161,91 @@ export function AdminDashboard() {
     }));
   });
 
-  // Mock dashboard stats
-  const stats: DashboardStats = {
-    totalUsers: 1580,
-    totalStudents: 1234,
-    totalTeachers: 89,
-    totalClasses: 45,
-    activeClasses: 42,
-    pendingReports: 12,
-    systemHealth: 98
-  };
+  // États pour les compteurs d'utilisateurs
+  const [userCounts, setUserCounts] = useState({
+    total: 0,
+    students: 0,
+    teachers: 0,
+    parents: 0,
+    active: 0
+  });
+
+  // État pour les statistiques du dashboard (maintenu pour compatibilité)
+  const [stats, setStats] = useState<DashboardStats>({
+    totalUsers: 0,
+    totalStudents: 0,
+    totalTeachers: 0,
+    totalClasses: 0,
+    activeClasses: 0,
+    pendingReports: 0,
+    systemHealth: 95
+  });
+
+  // Charger les données des utilisateurs et les statistiques
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        if (!user?.schoolId) return;
+        
+        // Récupération des utilisateurs de l'école
+        const token = localStorage.getItem('daara_token');
+        if (!token) return;
+        
+        const response = await fetch('http://localhost:5000/api/users', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const allUsers = await response.json();
+          
+          // Filtrer uniquement les utilisateurs de l'école de l'admin
+          const schoolUsers = allUsers.filter((u: any) => 
+            u.schoolId && u.schoolId._id === user.schoolId
+          );
+          
+          // Calculer les statistiques à partir des données brutes (comme dans UserManagement)
+          const total = schoolUsers.length;
+          const students = schoolUsers.filter((u: any) => u.role === 'student').length;
+          const teachers = schoolUsers.filter((u: any) => u.role === 'teacher').length;
+          const parents = schoolUsers.filter((u: any) => u.role === 'parent').length;
+          const active = schoolUsers.filter((u: any) => u.status === 'Actif').length;
+          
+          // Mise à jour des compteurs d'utilisateurs
+          setUserCounts({
+            total,
+            students,
+            teachers,
+            parents,
+            active
+          });
+          
+          // Mise à jour des statistiques générales (pour compatibilité)
+          setStats({
+            totalUsers: total,
+            totalStudents: students,
+            totalTeachers: teachers,
+            totalClasses: classes.length || 0,
+            activeClasses: 0, // À implémenter si nécessaire
+            pendingReports: 0,
+            systemHealth: 95
+          });
+          
+          console.log("Statistiques utilisateurs chargées:", { total, students, teachers, parents, active });
+        } else {
+          console.error("Erreur lors du chargement des utilisateurs:", await response.text());
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des données utilisateurs:', error);
+      }
+    };
+
+    if (user?.schoolId) {
+      fetchUserData();
+    }
+  }, [user?.schoolId, classes.length]);
 
   // Mock recent activities
   const recentActivities: RecentActivity[] = [
@@ -389,18 +466,18 @@ export function AdminDashboard() {
             console.error('❌ Erreur de réponse du serveur:', response.status);
             // En cas d'erreur, charger les matières par défaut
             const defaultSubjects = [
-              { id: 'Mathématiques', name: 'Mathématiques' },
-              { id: 'Français', name: 'Français' },
-              { id: 'Histoire-Géographie', name: 'Histoire-Géographie' },
-              { id: 'Sciences', name: 'Sciences' },
-              { id: 'Anglais', name: 'Anglais' },
-              { id: 'Arts Plastiques', name: 'Arts Plastiques' },
-              { id: 'Éducation Physique', name: 'Éducation Physique' },
-              { id: 'Philosophie', name: 'Philosophie' },
-              { id: 'Physique-Chimie', name: 'Physique-Chimie' },
-              { id: 'Sciences de la Vie et de la Terre', name: 'Sciences de la Vie et de la Terre' },
-              { id: 'Littérature', name: 'Littérature' },
-              { id: 'Économie', name: 'Économie' }
+              { _id: 'Mathématiques', id: 'Mathématiques', name: 'Mathématiques' },
+              { _id: 'Français', id: 'Français', name: 'Français' },
+              { _id: 'Histoire-Géographie', id: 'Histoire-Géographie', name: 'Histoire-Géographie' },
+              { _id: 'Sciences', id: 'Sciences', name: 'Sciences' },
+              { _id: 'Anglais', id: 'Anglais', name: 'Anglais' },
+              { _id: 'Arts Plastiques', id: 'Arts Plastiques', name: 'Arts Plastiques' },
+              { _id: 'Éducation Physique', id: 'Éducation Physique', name: 'Éducation Physique' },
+              { _id: 'Philosophie', id: 'Philosophie', name: 'Philosophie' },
+              { _id: 'Physique-Chimie', id: 'Physique-Chimie', name: 'Physique-Chimie' },
+              { _id: 'Sciences de la Vie et de la Terre', id: 'Sciences de la Vie et de la Terre', name: 'Sciences de la Vie et de la Terre' },
+              { _id: 'Littérature', id: 'Littérature', name: 'Littérature' },
+              { _id: 'Économie', id: 'Économie', name: 'Économie' }
             ];
             setAvailableSubjects(defaultSubjects);
           }
@@ -408,18 +485,18 @@ export function AdminDashboard() {
           console.error('Erreur lors du chargement des matières:', error);
           // En cas d'erreur, charger les matières par défaut
           const defaultSubjects = [
-            { id: 'Mathématiques', name: 'Mathématiques' },
-            { id: 'Français', name: 'Français' },
-            { id: 'Histoire-Géographie', name: 'Histoire-Géographie' },
-            { id: 'Sciences', name: 'Sciences' },
-            { id: 'Anglais', name: 'Anglais' },
-            { id: 'Arts Plastiques', name: 'Arts Plastiques' },
-            { id: 'Éducation Physique', name: 'Éducation Physique' },
-            { id: 'Philosophie', name: 'Philosophie' },
-            { id: 'Physique-Chimie', name: 'Physique-Chimie' },
-            { id: 'Sciences de la Vie et de la Terre', name: 'Sciences de la Vie et de la Terre' },
-            { id: 'Littérature', name: 'Littérature' },
-            { id: 'Économie', name: 'Économie' }
+            { _id: 'Mathématiques', id: 'Mathématiques', name: 'Mathématiques' },
+            { _id: 'Français', id: 'Français', name: 'Français' },
+            { _id: 'Histoire-Géographie', id: 'Histoire-Géographie', name: 'Histoire-Géographie' },
+            { _id: 'Sciences', id: 'Sciences', name: 'Sciences' },
+            { _id: 'Anglais', id: 'Anglais', name: 'Anglais' },
+            { _id: 'Arts Plastiques', id: 'Arts Plastiques', name: 'Arts Plastiques' },
+            { _id: 'Éducation Physique', id: 'Éducation Physique', name: 'Éducation Physique' },
+            { _id: 'Philosophie', id: 'Philosophie', name: 'Philosophie' },
+            { _id: 'Physique-Chimie', id: 'Physique-Chimie', name: 'Physique-Chimie' },
+            { _id: 'Sciences de la Vie et de la Terre', id: 'Sciences de la Vie et de la Terre', name: 'Sciences de la Vie et de la Terre' },
+            { _id: 'Littérature', id: 'Littérature', name: 'Littérature' },
+            { _id: 'Économie', id: 'Économie', name: 'Économie' }
           ];
           setAvailableSubjects(defaultSubjects);
         }
@@ -828,48 +905,48 @@ export function AdminDashboard() {
                   <Users className="h-4 w-4 text-blue-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-lg sm:text-xl md:text-2xl font-bold">{stats.totalUsers}</div>
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold">{userCounts.total}</div>
                   <p className="text-xs text-muted-foreground">
-                    +{Math.floor(stats.totalUsers * 0.02)} ce mois
+                    {userCounts.active} utilisateurs actifs
                   </p>
                 </CardContent>
               </Card>
 
               <Card className="col-span-1">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Étudiants Actifs</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-medium">Élèves</CardTitle>
                   <GraduationCap className="h-4 w-4 text-green-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-lg sm:text-xl md:text-2xl font-bold">{stats.totalStudents}</div>
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold">{userCounts.students}</div>
                   <p className="text-xs text-muted-foreground">
-                    {stats.totalTeachers} enseignants
+                    Élèves inscrits
                   </p>
                 </CardContent>
               </Card>
 
               <Card className="col-span-1">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Classes Actives</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-medium">Enseignants</CardTitle>
                   <BookOpen className="h-4 w-4 text-purple-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-lg sm:text-xl md:text-2xl font-bold">{stats.activeClasses}</div>
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold">{userCounts.teachers}</div>
                   <p className="text-xs text-muted-foreground">
-                    sur {stats.totalClasses} classes
+                    Enseignants actifs
                   </p>
                 </CardContent>
               </Card>
 
               <Card className="col-span-1">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-xs sm:text-sm font-medium">Santé Système</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-orange-600" />
+                  <CardTitle className="text-xs sm:text-sm font-medium">Parents</CardTitle>
+                  <Baby className="h-4 w-4 text-orange-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-lg sm:text-xl md:text-2xl font-bold">{stats.systemHealth}%</div>
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold">{userCounts.parents}</div>
                   <p className="text-xs text-muted-foreground">
-                    Performances optimales
+                    Parents enregistrés
                   </p>
                 </CardContent>
               </Card>
