@@ -54,7 +54,7 @@ import { SchoolStructure } from './admin/SchoolStructure';
 import { ReportsAnalytics } from './admin/ReportsAnalytics';
 import { SecuritySettings } from './admin/SecuritySettings';
 import { DataManagement } from './admin/DataManagement';
-import { SystemSettings } from './admin/SystemSettings';
+import { NotesManagement } from './admin/NotesManagement';
 import { ClassAssignment } from './admin/ClassAssignment';
 import ScheduleManagement from './admin/ScheduleManagement';
 import { ExamManagement } from './admin/ExamManagement';
@@ -214,9 +214,9 @@ export function AdminDashboard() {
     { id: 'users', label: 'Gestion Utilisateurs', icon: Users },
     { id: 'structure', label: 'Classes & Affectation', icon: School },
     { id: 'schedule', label: 'Emploi du Temps', icon: Calendar },
+     { id: 'system', label: 'Examens & Notes', icon: ClipboardList },
     { id: 'security', label: 'Paramètres Sécurité', icon: Shield },
-    { id: 'data', label: 'Gestion Données', icon: Database },
-    { id: 'system', label: 'Examens & Notes', icon: ClipboardList }
+    { id: 'data', label: 'Gestion Données', icon: Database }
   ];
 
   const handlePageChange = (pageId: ActivePage) => {
@@ -794,7 +794,7 @@ export function AdminDashboard() {
       case 'data':
         return <DataManagement />;
       case 'system':
-        return <SystemSettings />;
+        return <NotesManagement />;
       default:
         return (
           <div className="space-y-4 md:space-y-6">
