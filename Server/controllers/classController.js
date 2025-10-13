@@ -371,3 +371,32 @@ exports.getAllSubjects = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// Obtenir les étudiants d'une classe
+exports.getClassStudents = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    
+    const classInfo = await Class.findById(classId)
+      .populate('students', 'firstName lastName email phone dateOfBirth');
+    
+    if (!classInfo) {
+      return res.status(404).json({
+        success: false,
+        message: 'Classe non trouvée'
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      data: classInfo.students
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des étudiants:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération des étudiants',
+      error: error.message
+    });
+  }
+};

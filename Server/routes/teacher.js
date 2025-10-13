@@ -6,7 +6,9 @@ const {
   getTeachersBySchool,
   getTeacherById, 
   updateTeacher, 
-  deleteTeacher 
+  deleteTeacher,
+  getTeacherClasses,
+  getTeacherSubjects
 } = require('../controllers/teacherController');
 const authMiddleware = require('../middleware/auth');
 
@@ -16,6 +18,8 @@ router.use(authMiddleware);
 // Routes pour les enseignants
 router.post('/', createTeacher);
 router.get('/', getAllTeachers);
+router.get('/classes', getTeacherClasses); // Nouvelle route pour récupérer les classes de l'enseignant connecté
+router.get('/subjects', getTeacherSubjects); // Nouvelle route pour récupérer les matières de l'enseignant connecté
 router.get('/school/:schoolId', getTeachersBySchool);
 router.get('/:id', getTeacherById);
 router.put('/:id', updateTeacher);

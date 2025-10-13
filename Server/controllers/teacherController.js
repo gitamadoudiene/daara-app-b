@@ -220,3 +220,141 @@ exports.deleteTeacher = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// Fonction pour récupérer les classes d'un enseignant connecté
+exports.getTeacherClasses = async (req, res) => {
+  try {
+    const teacherId = req.user.userId; // Utiliser userId au lieu de id
+    console.log('Récupération des classes pour l\'enseignant ID:', teacherId);
+    console.log('Informations sur l\'enseignant connecté:', req.user);
+    
+    // Importer les modèles nécessaires
+    const Schedule = require('../models/Schedule');
+    const Class = require('../models/Class');
+    
+    // Méthode 1: Récupérer les classes via l'emploi du temps (Schedule)
+    const schedules = await Schedule.find({ 
+      teacherId: teacherId,
+      isActive: true 
+    })
+    .populate('classId', 'name level section students room studentCount')
+    .populate('subjectId', 'name code')
+    .populate('schoolId', 'name');
+    
+    console.log(`${schedules.length} créneau(x) d'emploi du temps trouvé(s) pour l'enseignant via Schedule`);
+    
+    // Méthode 2: Récupérer les classes où l'enseignant est directement assigné
+    const directClasses = await Class.find({ 
+      teachers: teacherId 
+    })
+    .populate('schoolId', 'name')
+    .select('name level section students room studentCount schoolId');
+    
+    console.log(`${directClasses.length} classe(s) trouvée(s) via assignation directe`);
+    
+    // Combiner les deux méthodes et extraire les classes uniques
+    const uniqueClasses = new Map();
+    
+    // Ajouter les classes via l'emploi du temps
+    schedules.forEach(schedule => {
+      if (schedule.classId) {
+        const classId = schedule.classId._id.toString();
+        if (!uniqueClasses.has(classId)) {
+          uniqueClasses.set(classId, {
+            _id: schedule.classId._id,
+            name: schedule.classId.name,
+            level: schedule.classId.level,
+            section: schedule.classId.section,
+            room: schedule.classId.room,
+            studentCount: schedule.classId.studentCount || schedule.classId.students?.length || 0,
+            schoolName: schedule.schoolId ? schedule.schoolId.name : 'École inconnue',
+            subjects: [],
+            source: 'schedule'
+          });
+        }
+        // Ajouter la matière enseignée dans cette classe
+        if (schedule.subjectId) {
+          const classData = uniqueClasses.get(classId);
+          if (!classData.subjects.some(s => s._id.toString() === schedule.subjectId._id.toString())) {
+            classData.subjects.push({
+              _id: schedule.subjectId._id,
+              name: schedule.subjectId.name,
+              code: schedule.subjectId.code
+            });
+          }
+        }
+      }
+    });
+    
+    // Ajouter les classes via assignation directe
+    directClasses.forEach(classObj => {
+      const classId = classObj._id.toString();
+      if (!uniqueClasses.has(classId)) {
+        uniqueClasses.set(classId, {
+          _id: classObj._id,
+          name: classObj.name,
+          level: classObj.level,
+          section: classObj.section,
+          room: classObj.room,
+          studentCount: classObj.studentCount || classObj.students?.length || 0,
+          schoolName: classObj.schoolId ? classObj.schoolId.name : 'École inconnue',
+          subjects: [],
+          source: 'direct'
+        });
+      }
+    });
+    
+    const classes = Array.from(uniqueClasses.values());
+    console.log(`${classes.length} classe(s) unique(s) finale(s) pour l'enseignant`);
+    
+    // Afficher un résumé pour debug
+    classes.forEach(cls => {
+      console.log(`- Classe: ${cls.name} (${cls.level}) - ${cls.studentCount} étudiants - Source: ${cls.source}`);
+    });
+
+    res.json({
+      success: true,
+      data: classes,
+      message: `${classes.length} classe(s) trouvée(s) (${schedules.length} via emploi du temps, ${directClasses.length} via assignation directe)`
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des classes de l\'enseignant:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur lors de la récupération des classes',
+      error: error.message
+    });
+  }
+};// Fonction pour récupérer les matières d'un enseignant connecté
+exports.getTeacherSubjects = async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    console.log('Récupération des matières pour l\'enseignant ID:', teacherId);
+    
+    // Récupérer les informations de l'enseignant
+    const teacher = await User.findById(teacherId);
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Enseignant non trouvé'
+      });
+    }
+    
+    // Récupérer les matières de l'enseignant
+    const subjects = teacher.subjects || [];
+    console.log('Matières trouvées:', subjects);
+    
+    res.json({
+      success: true,
+      data: subjects,
+      message: `${subjects.length} matière(s) trouvée(s)`
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des matières de l\'enseignant:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur lors de la récupération des matières',
+      error: error.message
+    });
+  }
+};

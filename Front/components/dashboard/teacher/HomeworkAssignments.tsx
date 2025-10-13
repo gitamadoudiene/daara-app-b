@@ -8,8 +8,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { FileText, Plus, Calendar, Clock, Eye, Edit, CheckCircle, AlertCircle } from 'lucide-react';
-import { useState } from 'react';
+import { FileText, Plus, Calendar, Clock, Eye, Edit, CheckCircle, AlertCircle, Award, Slash } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 interface Homework {
   id: string;
@@ -26,8 +28,27 @@ interface Homework {
   status: 'active' | 'completed' | 'overdue';
 }
 
+interface Student {
+  id: string;
+  name: string;
+  submissionStatus: 'submitted' | 'not_submitted' | 'late';
+  submissionDate?: string;
+  submissionContent?: string;
+  feedback?: string;
+  grade?: number;
+}
+
 export function HomeworkAssignments() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showViewSubmissionsDialog, setShowViewSubmissionsDialog] = useState(false);
+  const [showGradingDialog, setShowGradingDialog] = useState(false);
+  const [selectedHomework, setSelectedHomework] = useState<Homework | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [studentGrade, setStudentGrade] = useState<number | undefined>(undefined);
+  const [feedbackComment, setFeedbackComment] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
 
   // Mock data for homework assignments
   const homeworkList: Homework[] = [
@@ -156,6 +177,146 @@ export function HomeworkAssignments() {
     const diffTime = due.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
+  };
+  
+  // Mock data for student submissions
+  const mockStudentSubmissions: Student[] = [
+    {
+      id: '1',
+      name: 'Ahmed Diop',
+      submissionStatus: 'submitted',
+      submissionDate: '2024-07-23',
+      submissionContent: 'Tous les exercices ont été résolus correctement avec les étapes détaillées.',
+      feedback: '',
+      grade: undefined
+    },
+    {
+      id: '2',
+      name: 'Fatou Ndiaye',
+      submissionStatus: 'submitted',
+      submissionDate: '2024-07-22',
+      submissionContent: 'J&apos;ai résolu les exercices 1-12, mais j&apos;ai eu des difficultés avec les exercices 13-15.',
+      feedback: 'Bon travail sur les exercices complétés. Pour les exercices 13-15, revoyez les propriétés des fractions équivalentes.',
+      grade: 16
+    },
+    {
+      id: '3',
+      name: 'Moussa Sow',
+      submissionStatus: 'late',
+      submissionDate: '2024-07-26',
+      submissionContent: 'Voici mes exercices terminés, désolé pour le retard.',
+      feedback: '',
+      grade: undefined
+    },
+    {
+      id: '4',
+      name: 'Aissatou Ba',
+      submissionStatus: 'not_submitted',
+      submissionDate: undefined,
+      submissionContent: undefined,
+      feedback: '',
+      grade: undefined
+    }
+  ];
+  
+  const getSubmissionStatusColor = (status: string) => {
+    switch (status) {
+      case 'submitted': return 'bg-green-100 text-green-800';
+      case 'not_submitted': return 'bg-gray-100 text-gray-800';
+      case 'late': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getSubmissionStatusLabel = (status: string) => {
+    switch (status) {
+      case 'submitted': return 'Soumis';
+      case 'not_submitted': return 'Non soumis';
+      case 'late': return 'En retard';
+      default: return 'Inconnu';
+    }
+  };
+  
+  // Fonction pour gérer l'attribution de la note et du feedback
+  const handleSubmitGrade = async () => {
+    if (!selectedHomework || !selectedStudent) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Dans un environnement réel, vous feriez un appel API ici
+      // Exemple simulé:
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simuler un délai réseau
+      
+      // Mise à jour de l'état local pour l'interface utilisateur
+      const updatedSubmissions = mockStudentSubmissions.map(student => {
+        if (student.id === selectedStudent.id) {
+          return {
+            ...student,
+            grade: studentGrade,
+            feedback: feedbackComment
+          };
+        }
+        return student;
+      });
+      
+      // Simuler un traitement réussi
+      toast({
+        title: "Note attribuée",
+        description: `La note ${studentGrade}/20 a été attribuée à ${selectedStudent.name}`,
+      });
+      
+      // Dans une application réelle, vous pourriez aussi stocker la note dans l'API de notes
+      // que nous avons créée précédemment
+      try {
+        console.log("Création de la note dans l'API");
+        // Simuler l'appel API pour créer la note
+        /*
+        await fetch('/api/grades', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            studentId: selectedStudent.id,
+            classId: "class-id-from-homework", // Vous devriez extraire cela du devoir ou le récupérer
+            subject: selectedHomework.subject,
+            evaluationType: 'devoir',
+            score: studentGrade,
+            maxScore: 20,
+            title: `Note pour ${selectedHomework.title}`,
+            description: selectedHomework.description,
+            comment: feedbackComment,
+            semester: 1, // À définir dynamiquement selon le contexte
+            academicYear: '2023-2024', // À définir dynamiquement
+            coefficient: 1,
+            homeworkId: selectedHomework.id,
+            isPublished: true
+          })
+        });
+        */
+      } catch (error) {
+        console.error("Erreur lors de la création de la note dans l'API:", error);
+      }
+      
+      // Fermer la boîte de dialogue
+      setShowGradingDialog(false);
+      
+      // Réinitialiser les états
+      setStudentGrade(undefined);
+      setFeedbackComment('');
+      
+    } catch (error) {
+      console.error("Erreur lors de l'attribution de la note:", error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur s'est produite lors de l'attribution de la note.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -425,7 +586,14 @@ export function HomeworkAssignments() {
 
                 {/* Actions */}
                 <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-                  <Button size="sm" className="flex-1">
+                  <Button 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => {
+                      setSelectedHomework(homework);
+                      setShowViewSubmissionsDialog(true);
+                    }}
+                  >
                     <Eye className="mr-2 h-4 w-4" />
                     Voir Soumissions
                   </Button>
@@ -445,6 +613,166 @@ export function HomeworkAssignments() {
           </Card>
         ))}
       </div>
+
+      {/* Dialogue de visualisation des soumissions */}
+      <Dialog 
+        open={showViewSubmissionsDialog} 
+        onOpenChange={setShowViewSubmissionsDialog}
+      >
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Soumissions d&apos;élèves</DialogTitle>
+            <DialogDescription>
+              {selectedHomework && (
+                <span>
+                  Devoir: {selectedHomework.title} - {selectedHomework.class}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {mockStudentSubmissions.map((student) => (
+              <Card key={student.id}>
+                <CardHeader className="py-3">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-base">{student.name}</CardTitle>
+                    <div className="flex space-x-2 items-center">
+                      <Badge className={getSubmissionStatusColor(student.submissionStatus)}>
+                        {getSubmissionStatusLabel(student.submissionStatus)}
+                      </Badge>
+                      {student.grade !== undefined && (
+                        <Badge className="bg-blue-100 text-blue-800">
+                          {student.grade}/20
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <CardDescription>
+                    {student.submissionDate ? (
+                      <span>Soumis le {new Date(student.submissionDate).toLocaleDateString('fr-FR')}</span>
+                    ) : (
+                      <span>Aucune soumission</span>
+                    )}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Contenu de la soumission */}
+                    {student.submissionContent && (
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">Contenu de la soumission:</div>
+                        <div className="text-sm bg-gray-50 p-3 rounded-md">
+                          {student.submissionContent}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Feedback et note */}
+                    <div className="space-y-3">
+                      {student.feedback && (
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">Votre feedback:</div>
+                          <div className="text-sm bg-blue-50 p-3 rounded-md">
+                            {student.feedback}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Boutons d'action */}
+                      <div className="flex justify-end space-x-2 pt-2">
+                        {student.submissionStatus !== 'not_submitted' && (
+                          <Button 
+                            size="sm"
+                            onClick={() => {
+                              setSelectedStudent(student);
+                              setStudentGrade(student.grade);
+                              setFeedbackComment(student.feedback || '');
+                              setShowGradingDialog(true);
+                            }}
+                          >
+                            <Award className="mr-2 h-4 w-4" />
+                            {student.grade !== undefined ? 'Modifier la note' : 'Noter'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialogue de notation */}
+      <Dialog 
+        open={showGradingDialog} 
+        onOpenChange={setShowGradingDialog}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Attribuer une note</DialogTitle>
+            <DialogDescription>
+              {selectedStudent && (
+                <span>
+                  Élève: {selectedStudent.name}
+                  {selectedHomework && ` - ${selectedHomework.title}`}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedStudent && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="grade">Note (sur 20)</Label>
+                <Input 
+                  id="grade" 
+                  type="number" 
+                  min="0" 
+                  max="20" 
+                  step="0.5"
+                  value={studentGrade || ''}
+                  onChange={(e) => setStudentGrade(parseFloat(e.target.value) || undefined)}
+                  placeholder="Note sur 20"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="feedback">Commentaire / Feedback</Label>
+                <Textarea 
+                  id="feedback" 
+                  placeholder="Commentaire sur le travail de l&apos;élève"
+                  rows={4}
+                  value={feedbackComment}
+                  onChange={(e) => setFeedbackComment(e.target.value)}
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-2 pt-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowGradingDialog(false)}
+                >
+                  Annuler
+                </Button>
+                <Button 
+                  onClick={handleSubmitGrade}
+                  disabled={isSubmitting || studentGrade === undefined}
+                >
+                  {isSubmitting ? (
+                    <LoadingSpinner className="mr-2" size="sm" />
+                  ) : (
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Valider la note
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

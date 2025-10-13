@@ -77,6 +77,32 @@ exports.createSchedule = async (req, res) => {
     const schedule = new Schedule(scheduleData);
     await schedule.save();
 
+    // IMPORTANT: Ajouter automatiquement l'enseignant à la classe
+    // Cette étape assure que l'enseignant peut récupérer ses classes via getTeacherClasses
+    try {
+      const classToUpdate = await Class.findById(classId);
+      if (classToUpdate) {
+        // Vérifier si l'enseignant n'est pas déjà dans la liste des enseignants de la classe
+        if (!classToUpdate.teachers || !classToUpdate.teachers.some(id => id.toString() === teacherId.toString())) {
+          // Ajouter l'enseignant à la classe
+          await Class.findByIdAndUpdate(
+            classId,
+            { 
+              $addToSet: { 
+                teachers: new mongoose.Types.ObjectId(teacherId) 
+              } 
+            }
+          );
+          console.log(`✅ Enseignant ${teacher.name} ajouté à la classe ${classObj.name}`);
+        } else {
+          console.log(`ℹ️ Enseignant ${teacher.name} déjà associé à la classe ${classObj.name}`);
+        }
+      }
+    } catch (classUpdateError) {
+      console.error('Erreur lors de l\'association enseignant-classe:', classUpdateError);
+      // On continue quand même car le créneau a été créé
+    }
+
     // Populer les références pour la réponse
     await schedule.populate([
       { path: 'subjectId', select: 'name code' },
@@ -86,7 +112,7 @@ exports.createSchedule = async (req, res) => {
     ]);
 
     res.status(201).json({
-      message: 'Créneau créé avec succès',
+      message: 'Créneau créé avec succès et enseignant associé à la classe',
       schedule
     });
 

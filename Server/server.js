@@ -17,6 +17,7 @@ const teacherRoutes = require('./routes/teacher');
 const classRoutes = require('./routes/class');
 const subjectRoutes = require('./routes/subject');
 const scheduleRoutes = require('./routes/schedule');
+const gradeRoutes = require('./routes/grade');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -27,6 +28,7 @@ app.use('/api/teachers', teacherRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/schedules', scheduleRoutes);
+app.use('/api/grades', gradeRoutes);
 
 const PORT = process.env.PORT || 5000;
 
