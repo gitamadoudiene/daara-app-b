@@ -26,6 +26,7 @@ import {
 import { toast } from 'sonner';
 
 interface Administrator {
+  _id: string;
   id: string;
   name: string;
   email: string;
@@ -176,8 +177,12 @@ export function AdministratorManagement() {
 
   // Filter administrators based on search and filters
   const filteredAdministrators = administrators.filter(admin => {
-    const schoolName = typeof admin.school === 'object' && admin.school !== null ? admin.school.name : admin.school;
-    const schoolId = typeof admin.school === 'object' && admin.school !== null ? admin.school._id : admin.schoolId || admin.school;
+    const schoolName = typeof admin.school === 'object' && admin.school !== null
+      ? (admin.school && 'name' in admin.school ? ((admin.school as { name?: string }).name ?? '') : '')
+      : (admin.school ?? '');
+    const schoolId = typeof admin.school === 'object' && admin.school !== null && '_id' in admin.school && (admin.school as { _id?: string })?._id != null
+      ? (admin.school as { _id?: string })?._id
+      : admin.schoolId || admin.school;
     const status = admin.status || (admin.lastLogin ? 'Actif' : 'Inactif');
     const matchesSearch = (
       (admin.name && admin.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -439,7 +444,11 @@ export function AdministratorManagement() {
                         </div>
                         <div className="flex items-center space-x-2">
                           <Building2 className="h-4 w-4" />
-                          <span>{typeof admin.school === 'object' && admin.school !== null ? admin.school.name : admin.school}</span>
+                          <span>
+                            {typeof admin.school === 'object' && admin.school !== null
+                              ? ((admin.school as { name?: string })?.name ?? '')
+                              : (admin.school ?? '')}
+                          </span>
                         </div>
                       </div>
                       
@@ -521,7 +530,13 @@ export function AdministratorManagement() {
                   </div>
                   <div>
                     <Label>École Assignée</Label>
-                    <p className="font-medium">{typeof selectedAdmin.school === 'object' && selectedAdmin.school !== null ? selectedAdmin.school.name : selectedAdmin.school}</p>
+                    <p className="font-medium">
+                      {selectedAdmin.school
+                        ? (typeof selectedAdmin.school === 'object' && selectedAdmin.school !== null
+                            ? ((selectedAdmin.school as { name?: string })?.name)
+                            : selectedAdmin.school)
+                        : ''}
+                    </p>
                   </div>
                   <div>
                     <Label>Statut</Label>
@@ -645,7 +660,18 @@ export function AdministratorManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-school">École</Label>
-                  <select id="edit-school" name="edit-school" className="w-full p-2 border rounded-md" defaultValue={typeof selectedAdmin.school === 'object' && selectedAdmin.school !== null ? selectedAdmin.school._id : selectedAdmin.schoolId || selectedAdmin.school}>
+                  <select
+                    id="edit-school"
+                    name="edit-school"
+                    className="w-full p-2 border rounded-md"
+                    defaultValue={
+                      typeof selectedAdmin.school === 'object' &&
+                      selectedAdmin.school !== null &&
+                      typeof (selectedAdmin.school as { _id?: string })._id === 'string'
+                        ? (selectedAdmin.school as { _id: string })._id
+                        : selectedAdmin.schoolId ?? selectedAdmin.school ?? ''
+                    }
+                  >
                     {schools.map((school) => (
                       <option key={school.id} value={school.id}>
                         {school.name}
@@ -716,6 +742,7 @@ export function AdministratorManagement() {
           )}
         </DialogContent>
       </Dialog>
+      
     </div>
   );
 }

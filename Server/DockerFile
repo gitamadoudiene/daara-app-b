@@ -1,0 +1,18 @@
+# Utilise Node 18
+FROM node:18
+
+# Dossier de travail
+WORKDIR /app
+
+# Copier les fichiers de dépendances
+COPY package*.json ./
+RUN npm install
+
+# Copier le reste du projet
+COPY . .
+
+# Exposer le port
+EXPOSE 5000
+
+# Démarrer le serveur
+CMD ["npm", "start"]

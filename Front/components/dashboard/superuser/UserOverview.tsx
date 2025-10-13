@@ -464,6 +464,13 @@ export function UserOverview() {
             setClasses([]);
           }
           
+            const response = await fetch(apiUrl, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json'
+              }
+            });
+
           console.log('Statut de réponse API classes:', response.status);
           
           if (!response.ok) {

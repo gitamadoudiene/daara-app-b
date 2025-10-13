@@ -575,7 +575,7 @@ export default function ScheduleManagement() {
             Sélectionner une classe
           </CardTitle>
           <CardDescription>
-            Choisissez la classe pour laquelle vous souhaitez gérer l'emploi du temps
+            Choisissez la classe pour laquelle vous souhaitez gérer l&apos;emploi du temps
           </CardDescription>
         </CardHeader>
         <CardContent>

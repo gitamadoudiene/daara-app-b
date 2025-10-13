@@ -30,6 +30,8 @@ import { toast } from 'sonner';
 
 
 interface School {
+  addedDate: boolean;
+  createdYear: string;
   _id: string;
   name: string;
   address: string;
@@ -381,14 +383,19 @@ export function SchoolManagement() {
                         </div>
                         <div className="flex items-center space-x-2">
                           <Calendar className="h-4 w-4 flex-shrink-0" />
-                            <span>Créée en {school.createdYear}</span>
+                            <span>Créée en {school.createdAt}</span>
                         </div>
                       </div>
                     </div>
                     
                     <div className="flex items-center space-x-2 mt-3 text-xs text-muted-foreground">
                       <Calendar className="h-3 w-3 flex-shrink-0" />
-                      <span>Ajoutée le: {school.addedDate && !isNaN(Date.parse(school.addedDate)) ? new Date(school.addedDate).toLocaleDateString('fr-FR') : 'Date inconnue'}</span>
+                      <span>
+                        Ajoutée le: 
+                        {typeof school.addedDate === 'string' && !isNaN(Date.parse(school.addedDate)) 
+                          ? new Date(school.addedDate).toLocaleDateString('fr-FR') 
+                          : 'Date inconnue'}
+                      </span>
                     </div>
                   </div>
                   
@@ -515,7 +522,7 @@ export function SchoolManagement() {
                   </div>
                   <div>
                     <Label>Ajoutée au Système</Label>
-                    <p className="font-medium">{selectedSchool.addedDate && !isNaN(Date.parse(selectedSchool.addedDate)) ? new Date(selectedSchool.addedDate).toLocaleDateString('fr-FR') : 'Non renseignée'}</p>
+                    <p className="font-medium">{typeof selectedSchool.addedDate === 'string' && !isNaN(Date.parse(selectedSchool.addedDate)) ? new Date(selectedSchool.addedDate).toLocaleDateString('fr-FR') : 'Non renseignée'}</p>
                   </div>
                 </div>
               </TabsContent>
