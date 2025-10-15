@@ -393,10 +393,75 @@ export function GradesAssessment() {
     const updatedAssessment = { ...newAssessment, [field]: value };
     setNewAssessment(updatedAssessment);
     
+    // Récupérer automatiquement le coefficient quand la classe ou la matière change
+    if (field === 'classId' && updatedAssessment.subject) {
+      getDefaultCoefficient(value, updatedAssessment.subject);
+    } else if (field === 'subject' && updatedAssessment.classId) {
+      getDefaultCoefficient(updatedAssessment.classId, value);
+    }
+    
     // Valider en temps réel
     const errors = validateForm(updatedAssessment);
     setFormErrors(errors);
     setIsFormValid(Object.keys(errors).length === 0);
+  };
+
+  // Récupérer le coefficient par défaut basé sur le niveau de classe et la matière
+  const getDefaultCoefficient = async (classId: string, subject: string) => {
+    try {
+      if (!classId || !subject) return;
+      
+      const classData = classes.find(c => c._id === classId);
+      if (!classData) return;
+      
+      const response = await fetch(`/api/coefficients?classLevel=${classData.level}&subject=${subject}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
+        }
+      });
+      
+      if (response.ok) {
+        const coefficients = await response.json();
+        if (coefficients.length > 0) {
+          const coefficient = coefficients[0].coefficient;
+          setNewAssessment(prev => ({ ...prev, coefficient }));
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération du coefficient par défaut:', error);
+    }
+  };
+
+  // Charger les paramètres par défaut pour le semestre et l'année académique
+  const loadDefaultSettings = () => {
+    try {
+      const savedSettings = localStorage.getItem('school-settings');
+      if (savedSettings) {
+        const settings = JSON.parse(savedSettings);
+        return {
+          semester: settings.defaultSemester || 1,
+          academicYear: settings.defaultAcademicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
+        };
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des paramètres par défaut:', error);
+    }
+    
+    const currentYear = new Date().getFullYear();
+    return {
+      semester: 1,
+      academicYear: `${currentYear}-${currentYear + 1}`
+    };
+  };
+
+  // Initialiser les paramètres par défaut lors de l'ouverture du formulaire
+  const initializeFormWithDefaults = () => {
+    const defaults = loadDefaultSettings();
+    setNewAssessment(prev => ({
+      ...prev,
+      semester: defaults.semester,
+      academicYear: defaults.academicYear
+    }));
   };
 
   // Filtrer les évaluations en fonction des critères sélectionnés
@@ -799,13 +864,16 @@ export function GradesAssessment() {
             Gérez les évaluations et saisissez les notes de vos étudiants
           </p>
         </div>
-        <Button onClick={() => {
-          resetForm();
-          setShowCreateDialog(true);
-        }}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nouvelle Évaluation
-        </Button>
+        <div className="flex space-x-2">
+          <Button onClick={() => {
+            resetForm();
+            initializeFormWithDefaults();
+            setShowCreateDialog(true);
+          }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nouvelle Évaluation
+          </Button>
+        </div>
       </div>
 
       {/* Filters and Search */}
@@ -1550,6 +1618,7 @@ export function GradesAssessment() {
           )}
         </DialogContent>
       </Dialog>
+      
     </div>
   );
 }

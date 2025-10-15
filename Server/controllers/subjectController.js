@@ -95,6 +95,27 @@ const getSubjectsBySchool = async (req, res) => {
   }
 };
 
+// Récupérer toutes les matières (pour l'interface admin)
+const getAllSubjects = async (req, res) => {
+  try {
+    // Récupérer l'école de l'utilisateur connecté depuis le token
+    const userSchoolId = req.user.schoolId;
+    
+    const subjects = await Subject.find({ schoolId: userSchoolId })
+      .populate('teacherId', 'name firstName lastName')
+      .populate('schoolId', 'name')
+      .sort({ name: 1 });
+
+    res.json(subjects);
+
+  } catch (error) {
+    console.error('Erreur lors de la récupération des matières:', error);
+    res.status(500).json({ 
+      message: 'Erreur serveur lors de la récupération des matières' 
+    });
+  }
+};
+
 // Récupérer une matière par ID
 const getSubjectById = async (req, res) => {
   try {

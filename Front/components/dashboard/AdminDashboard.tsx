@@ -53,13 +53,15 @@ import { UserManagement } from './admin/UserManagement';
 import { SchoolStructure } from './admin/SchoolStructure';
 import { ReportsAnalytics } from './admin/ReportsAnalytics';
 import { SecuritySettings } from './admin/SecuritySettings';
+import { SystemSettings } from './admin/SystemSettings';
 import { DataManagement } from './admin/DataManagement';
 import { NotesManagement } from './admin/NotesManagement';
 import { ClassAssignment } from './admin/ClassAssignment';
 import ScheduleManagement from './admin/ScheduleManagement';
 import { ExamManagement } from './admin/ExamManagement';
+import { CLASS_LEVELS } from '@/lib/classLevels';
 
-type ActivePage = 'overview' | 'users' | 'structure' | 'reports' | 'schedule' | 'security' | 'data' | 'system';
+type ActivePage = 'overview' | 'users' | 'structure' | 'reports' | 'schedule' | 'security' | 'data' | 'system' | 'systemSettings';
 
 interface DashboardStats {
   totalUsers: number;
@@ -292,6 +294,7 @@ export function AdminDashboard() {
     { id: 'structure', label: 'Classes & Affectation', icon: School },
     { id: 'schedule', label: 'Emploi du Temps', icon: Calendar },
      { id: 'system', label: 'Examens & Notes', icon: ClipboardList },
+    { id: 'systemSettings', label: 'Paramètres Système', icon: Settings },
     { id: 'security', label: 'Paramètres Sécurité', icon: Shield },
     { id: 'data', label: 'Gestion Données', icon: Database }
   ];
@@ -868,6 +871,8 @@ export function AdminDashboard() {
         return <ScheduleManagement />;
       case 'security':
         return <SecuritySettings />;
+      case 'systemSettings':
+        return <SystemSettings />;
       case 'data':
         return <DataManagement />;
       case 'system':
@@ -1417,20 +1422,11 @@ export function AdminDashboard() {
                                 <SelectValue placeholder="Sélectionner le niveau" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="CP">CP - Cours Préparatoire</SelectItem>
-                                <SelectItem value="CE1">CE1 - Cours Élémentaire 1</SelectItem>
-                                <SelectItem value="CE2">CE2 - Cours Élémentaire 2</SelectItem>
-                                <SelectItem value="CM1">CM1 - Cours Moyen 1</SelectItem>
-                                <SelectItem value="CM2">CM2 - Cours Moyen 2</SelectItem>
-                                <SelectItem value="6eme">6ème</SelectItem>
-                                <SelectItem value="5eme">5ème</SelectItem>
-                                <SelectItem value="4eme">4ème</SelectItem>
-                                <SelectItem value="3eme">3ème</SelectItem>
-                                <SelectItem value="2nde">2nde</SelectItem>
-                                <SelectItem value="1ere">1ère</SelectItem>
-                                <SelectItem value="Terminal_S">Terminal S</SelectItem>
-                                <SelectItem value="Terminal_L">Terminal L</SelectItem>
-                                <SelectItem value="Terminal_G">Terminal G</SelectItem>
+                                {CLASS_LEVELS.map((level) => (
+                                  <SelectItem key={level.value} value={level.value}>
+                                    {level.label}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>

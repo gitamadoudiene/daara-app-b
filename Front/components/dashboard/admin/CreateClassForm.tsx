@@ -3,6 +3,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { CLASS_LEVELS } from '@/lib/classLevels';
 
 // Types
 interface Teacher {
@@ -101,20 +102,11 @@ export function CreateClassForm({
               <SelectValue placeholder="Sélectionner le niveau" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="CP">CP - Cours Préparatoire</SelectItem>
-              <SelectItem value="CE1">CE1 - Cours Élémentaire 1</SelectItem>
-              <SelectItem value="CE2">CE2 - Cours Élémentaire 2</SelectItem>
-              <SelectItem value="CM1">CM1 - Cours Moyen 1</SelectItem>
-              <SelectItem value="CM2">CM2 - Cours Moyen 2</SelectItem>
-              <SelectItem value="6eme">6ème</SelectItem>
-              <SelectItem value="5eme">5ème</SelectItem>
-              <SelectItem value="4eme">4ème</SelectItem>
-              <SelectItem value="3eme">3ème</SelectItem>
-              <SelectItem value="2nde">2nde</SelectItem>
-              <SelectItem value="1ere">1ère</SelectItem>
-              <SelectItem value="Terminal_S">Terminal S</SelectItem>
-              <SelectItem value="Terminal_L">Terminal L</SelectItem>
-              <SelectItem value="Terminal_G">Terminal G</SelectItem>
+              {CLASS_LEVELS.map((level) => (
+                <SelectItem key={level.value} value={level.value}>
+                  {level.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

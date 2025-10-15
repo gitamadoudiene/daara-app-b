@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CoefficientManagement } from './CoefficientManagement';
 import { 
   Settings,
   Globe,
@@ -22,7 +23,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Info,
-  Smartphone
+  Smartphone,
+  BookOpen
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -260,8 +262,9 @@ export function SystemSettings() {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5">
               <TabsTrigger value="general" className="text-xs sm:text-sm">Général</TabsTrigger>
+              <TabsTrigger value="coefficients" className="text-xs sm:text-sm">Coefficients</TabsTrigger>
               <TabsTrigger value="notifications" className="text-xs sm:text-sm">Notifications</TabsTrigger>
               <TabsTrigger value="maintenance" className="text-xs sm:text-sm">Maintenance</TabsTrigger>
               <TabsTrigger value="advanced" className="text-xs sm:text-sm">Avancé</TabsTrigger>
@@ -345,6 +348,10 @@ export function SystemSettings() {
                   </Button>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="coefficients" className="space-y-6">
+              <CoefficientManagement />
             </TabsContent>
 
             <TabsContent value="notifications" className="space-y-6">
