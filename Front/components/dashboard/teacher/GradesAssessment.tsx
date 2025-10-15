@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Download, Upload, Filter, AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
+import { Plus, Search, Download, Upload, Filter, AlertCircle, CheckCircle, Trash2, BarChart3 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { EvaluationStats } from './EvaluationStats';
 import {
   Table,
   TableBody,
@@ -38,6 +39,8 @@ interface Assessment {
   semester: number;
   academicYear: string;
   description?: string;
+  coefficient?: number;
+  maxScore?: number;
 }
 
 interface Class {
@@ -60,9 +63,24 @@ interface GradeInput {
   studentId: string;
   score: number;
   comment?: string;
+  isAbsent?: boolean;
 }
 
 export function GradesAssessment() {
+  // Fonction utilitaire pour mapper les types serveur vers frontend
+  const mapServerTypeToFrontend = (serverType: string): string => {
+    const serverToFrontendTypeMapping: {[key: string]: string} = {
+      'devoir': 'devoir',
+      'controle': 'controle', 
+      'examen': 'composition', // Les compositions sont stockées comme "examen" côté serveur
+      'presentation': 'oral',
+      'projet': 'projet',
+      'oral': 'oral'
+    };
+    
+    return serverToFrontendTypeMapping[serverType] || serverType;
+  };
+
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<string[]>([]);
@@ -74,12 +92,18 @@ export function GradesAssessment() {
   const [showGradeDialog, setShowGradeDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showStatsDialog, setShowStatsDialog] = useState(false);
   const [selectedAssessment, setSelectedAssessment] = useState<Assessment | null>(null);
   const [assessmentToDelete, setAssessmentToDelete] = useState<Assessment | null>(null);
   const [studentsToGrade, setStudentsToGrade] = useState<Student[]>([]);
   const [gradesInput, setGradesInput] = useState<{[studentId: string]: GradeInput}>({});
   const [currentSemester, setCurrentSemester] = useState<number>(1);
   const [currentAcademicYear, setCurrentAcademicYear] = useState<string>('2025-2026');
+  
+  // États pour la validation du formulaire
+  const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
+  const [isFormValid, setIsFormValid] = useState<boolean>(false);
+  
   const [newAssessment, setNewAssessment] = useState<Partial<Assessment>>({
     title: '',
     classId: '',
@@ -88,7 +112,9 @@ export function GradesAssessment() {
     date: new Date().toISOString().split('T')[0],
     semester: 1,
     academicYear: '2025-2026',
-    description: ''
+    description: '',
+    coefficient: 1,
+    maxScore: 20
   });
   const { toast } = useToast();
 
@@ -198,6 +224,9 @@ export function GradesAssessment() {
               subject: evaluation.subject
             });
             
+            // Mapper les types du serveur vers les types d'interface
+            const mappedType = mapServerTypeToFrontend(evaluation.type);
+            
             return {
               _id: evaluation._id,
               id: evaluation._id,
@@ -205,7 +234,7 @@ export function GradesAssessment() {
               class: evaluation.classId?.name || 'N/A',
               classId: evaluation.classId?._id || evaluation.classId,
               subject: evaluation.subjectId?.name || evaluation.subject || 'N/A',
-              type: evaluation.type, // 'devoir', 'examen', etc.
+              type: mappedType, // Utiliser le type mappé pour l'interface
               date: evaluation.plannedDate,
               totalStudents: evaluation.classId?.students?.length || 0,
               gradedStudents: evaluation.submittedGrades || 0,
@@ -287,6 +316,87 @@ export function GradesAssessment() {
       case 'composition': return 'bg-indigo-100 text-indigo-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  // Fonction pour réinitialiser le formulaire
+  const resetForm = () => {
+    setNewAssessment({
+      title: '',
+      classId: '',
+      subject: '',
+      type: 'controle',
+      date: new Date().toISOString().split('T')[0],
+      semester: 1,
+      academicYear: '2025-2026',
+      description: '',
+      coefficient: 1,
+      maxScore: 20
+    });
+    setFormErrors({});
+    setIsFormValid(false);
+  };
+
+  // Fonction de validation du formulaire
+  const validateForm = (assessmentData: Partial<Assessment>) => {
+    const errors: {[key: string]: string} = {};
+
+    if (!assessmentData.title || assessmentData.title.trim() === '') {
+      errors.title = 'Le titre de l\'évaluation est obligatoire';
+    } else if (assessmentData.title.trim().length < 3) {
+      errors.title = 'Le titre doit contenir au moins 3 caractères';
+    } else if (assessmentData.title.trim().length > 100) {
+      errors.title = 'Le titre ne peut pas dépasser 100 caractères';
+    }
+
+    if (!assessmentData.classId || assessmentData.classId === '') {
+      errors.classId = 'La sélection d\'une classe est obligatoire';
+    }
+
+    if (!assessmentData.subject || assessmentData.subject.trim() === '') {
+      errors.subject = 'La sélection d\'une matière est obligatoire';
+    }
+
+    if (!assessmentData.type || assessmentData.type === '') {
+      errors.type = 'Le type d\'évaluation est obligatoire';
+    }
+
+    if (!assessmentData.date || assessmentData.date === '') {
+      errors.date = 'La date de l\'évaluation est obligatoire';
+    } else {
+      const selectedDate = new Date(assessmentData.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (selectedDate < today) {
+        errors.date = 'La date ne peut pas être antérieure à aujourd\'hui';
+      }
+    }
+
+    if (!assessmentData.semester || (assessmentData.semester !== 1 && assessmentData.semester !== 2)) {
+      errors.semester = 'Le semestre doit être 1 ou 2';
+    }
+
+    if (!assessmentData.academicYear || assessmentData.academicYear.trim() === '') {
+      errors.academicYear = 'L\'année académique est obligatoire';
+    }
+
+    // Description optionnelle mais si présente, elle doit être raisonnable
+    if (assessmentData.description && assessmentData.description.length > 500) {
+      errors.description = 'La description ne peut pas dépasser 500 caractères';
+    }
+
+    return errors;
+  };
+
+  // Mettre à jour la validation quand les données changent
+  const updateFormData = (field: string, value: any) => {
+    const updatedAssessment = { ...newAssessment, [field]: value };
+    setNewAssessment(updatedAssessment);
+    
+    // Valider en temps réel
+    const errors = validateForm(updatedAssessment);
+    setFormErrors(errors);
+    setIsFormValid(Object.keys(errors).length === 0);
   };
 
   // Filtrer les évaluations en fonction des critères sélectionnés
@@ -404,13 +514,31 @@ export function GradesAssessment() {
     console.log('Données de notes à soumettre:', gradesInput);
     
     try {
-      const gradesToSubmit = Object.values(gradesInput).filter(grade => grade.score > 0);
+      // Inclure toutes les notes (même les 0 et les absents)
+      const gradesToSubmit = Object.values(gradesInput).filter(grade => 
+        grade.score > 0 || grade.isAbsent
+      );
       
       if (gradesToSubmit.length === 0) {
         toast({
           title: "Attention",
           description: "Aucune note à soumettre.",
           variant: "default"
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Validation des notes
+      const invalidGrades = gradesToSubmit.filter(grade => 
+        !grade.isAbsent && (grade.score < 0 || grade.score > 20)
+      );
+      
+      if (invalidGrades.length > 0) {
+        toast({
+          title: "Erreur de validation",
+          description: "Toutes les notes doivent être entre 0 et 20.",
+          variant: "destructive"
         });
         setIsSubmitting(false);
         return;
@@ -435,19 +563,21 @@ export function GradesAssessment() {
       console.log('Réponse du serveur pour la soumission des notes:', data);
       
       if (data.success) {
+        const gradedCount = gradesToSubmit.filter(g => !g.isAbsent).length;
+        const absentCount = gradesToSubmit.filter(g => g.isAbsent).length;
+        
         toast({
           title: "Notes soumises",
-          description: `${gradesToSubmit.length} note(s) ont été enregistrées avec succès.`,
+          description: `${gradedCount} note(s) et ${absentCount} absence(s) enregistrées avec succès.`,
         });
         
         // Mettre à jour la liste des évaluations
         const updatedAssessments = assessments.map(assessment => {
           if (assessment._id === selectedAssessment._id || assessment.id === selectedAssessment.id) {
-            const gradedCount = gradesToSubmit.length;
-            const newGradedStudents = assessment.gradedStudents + gradedCount;
-            const newStatus = assessment.totalStudents === newGradedStudents 
+            const newGradedStudents = gradedCount;
+            const newStatus = assessment.totalStudents === (gradedCount + absentCount)
               ? 'completed' 
-              : 'inProgress';
+              : gradedCount > 0 ? 'inProgress' : assessment.status;
             
             return {
               ...assessment,
@@ -538,10 +668,14 @@ export function GradesAssessment() {
   const handleCreateAssessment = async () => {
     console.log('Tentative de création d\'évaluation avec:', newAssessment);
     
-    if (!newAssessment.title || !newAssessment.classId || !newAssessment.subject) {
+    // Valider le formulaire avant soumission
+    const errors = validateForm(newAssessment);
+    setFormErrors(errors);
+    
+    if (Object.keys(errors).length > 0) {
       toast({
         title: "Formulaire incomplet",
-        description: "Veuillez remplir tous les champs obligatoires.",
+        description: "Veuillez corriger les erreurs dans le formulaire.",
         variant: "destructive"
       });
       return;
@@ -563,8 +697,8 @@ export function GradesAssessment() {
         semester: newAssessment.semester, // Sera converti côté serveur
         academicYear: newAssessment.academicYear,
         description: newAssessment.description,
-        maxScore: 20, // Score par défaut
-        coefficient: 1, // Coefficient par défaut
+        maxScore: newAssessment.maxScore || 20, // Score configuré par l'utilisateur
+        coefficient: newAssessment.coefficient || 1, // Coefficient configuré par l'utilisateur
         duration: 60, // Durée par défaut en minutes
         subject: newAssessment.subject // Ajout du subject comme string pour compatibilité
       };
@@ -595,6 +729,9 @@ export function GradesAssessment() {
         });
         
         // Convertir la réponse au format attendu par l'interface
+        // Mapper les types du serveur vers les types d'interface
+        const mappedType = mapServerTypeToFrontend(data.data.type) || newAssessment.type!;
+        
         const newAssessmentWithId: Assessment = {
           _id: data.data._id,
           id: data.data._id,
@@ -602,7 +739,7 @@ export function GradesAssessment() {
           class: data.data.classId?.name || selectedClass?.name || 'N/A',
           classId: data.data.classId?._id || data.data.classId,
           subject: data.data.subjectId?.name || newAssessment.subject || 'N/A',
-          type: data.data.type || newAssessment.type!, // Utiliser le type retourné par l'API
+          type: mappedType, // Utiliser le type mappé pour l'interface
           date: data.data.plannedDate,
           totalStudents: data.data.stats?.totalStudents || 0,
           gradedStudents: data.data.stats?.submittedGrades || 0,
@@ -619,17 +756,7 @@ export function GradesAssessment() {
         setAssessments([...assessments, newAssessmentWithId]);
         
         // Réinitialiser le formulaire et fermer la boîte de dialogue
-        setNewAssessment({
-          title: '',
-          classId: '',
-          subject: '',
-          type: 'controle',
-          date: new Date().toISOString().split('T')[0],
-          semester: currentSemester,
-          academicYear: currentAcademicYear,
-          description: ''
-        });
-        
+        resetForm();
         setShowCreateDialog(false);
       } else {
         console.error('Erreur lors de la création de l\'évaluation:', data.message);
@@ -672,7 +799,10 @@ export function GradesAssessment() {
             Gérez les évaluations et saisissez les notes de vos étudiants
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
+        <Button onClick={() => {
+          resetForm();
+          setShowCreateDialog(true);
+        }}>
           <Plus className="mr-2 h-4 w-4" />
           Nouvelle Évaluation
         </Button>
@@ -759,7 +889,10 @@ export function GradesAssessment() {
             <p className="text-sm text-muted-foreground text-center mb-4">
               Vous n&apos;avez pas encore créé d&apos;évaluation ou aucune ne correspond aux critères de recherche.
             </p>
-            <Button onClick={() => setShowCreateDialog(true)}>
+            <Button onClick={() => {
+              resetForm();
+              setShowCreateDialog(true);
+            }}>
               <Plus className="mr-2 h-4 w-4" />
               Créer une évaluation
             </Button>
@@ -865,7 +998,16 @@ export function GradesAssessment() {
                       <Trash2 className="mr-2 h-4 w-4" />
                       Supprimer
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => {
+                        setSelectedAssessment(assessment);
+                        setShowStatsDialog(true);
+                      }}
+                    >
+                      <BarChart3 className="mr-2 h-4 w-4" />
                       Statistiques
                     </Button>
                   </div>
@@ -907,58 +1049,148 @@ export function GradesAssessment() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[40%]">Étudiant</TableHead>
-                    <TableHead className="w-[20%] text-center">Note/20</TableHead>
-                    <TableHead className="w-[40%]">Commentaire</TableHead>
+                    <TableHead className="w-[30%]">Étudiant</TableHead>
+                    <TableHead className="w-[15%] text-center">Note/20</TableHead>
+                    <TableHead className="w-[10%] text-center">Absent</TableHead>
+                    <TableHead className="w-[35%]">Commentaire</TableHead>
+                    <TableHead className="w-[10%] text-center">Statut</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {studentsToGrade.map((student) => (
-                    <TableRow key={student._id}>
-                      <TableCell className="font-medium">
-                        {student.name}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Input 
-                          type="number" 
-                          min="0" 
-                          max="20" 
-                          step="0.5"
-                          className="w-20 mx-auto text-center"
-                          value={gradesInput[student._id]?.score || ''}
-                          onChange={(e) => {
-                            const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                            setGradesInput({
-                              ...gradesInput,
-                              [student._id]: {
-                                ...gradesInput[student._id],
-                                studentId: student._id,
-                                score: value
-                              }
-                            });
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input 
-                          placeholder="Commentaire (optionnel)"
-                          value={gradesInput[student._id]?.comment || ''}
-                          onChange={(e) => {
-                            setGradesInput({
-                              ...gradesInput,
-                              [student._id]: {
-                                ...gradesInput[student._id],
-                                studentId: student._id,
-                                comment: e.target.value
-                              }
-                            });
-                          }}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {studentsToGrade.map((student) => {
+                    const isAbsent = gradesInput[student._id]?.isAbsent || false;
+                    const currentScore = gradesInput[student._id]?.score || 0;
+                    const isValidScore = currentScore >= 0 && currentScore <= 20;
+                    
+                    return (
+                      <TableRow key={student._id} className={isAbsent ? 'bg-gray-50' : ''}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center space-x-2">
+                            <div>
+                              <div>{student.name}</div>
+                              {student.email && (
+                                <div className="text-xs text-gray-500">{student.email}</div>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Input 
+                            type="number" 
+                            min="0" 
+                            max="20" 
+                            step="0.5"
+                            className={`w-20 mx-auto text-center ${
+                              isAbsent ? 'bg-gray-100 cursor-not-allowed' : 
+                              !isValidScore && currentScore > 0 ? 'border-red-500' : ''
+                            }`}
+                            value={isAbsent ? '' : (gradesInput[student._id]?.score || '')}
+                            disabled={isAbsent}
+                            onChange={(e) => {
+                              const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                              setGradesInput({
+                                ...gradesInput,
+                                [student._id]: {
+                                  ...gradesInput[student._id],
+                                  studentId: student._id,
+                                  score: value,
+                                  isAbsent: false
+                                }
+                              });
+                            }}
+                            placeholder={isAbsent ? "ABS" : "0-20"}
+                          />
+                          {!isAbsent && !isValidScore && currentScore > 0 && (
+                            <div className="text-xs text-red-500 mt-1">0-20</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <input
+                            type="checkbox"
+                            className="rounded"
+                            checked={isAbsent}
+                            onChange={(e) => {
+                              const absent = e.target.checked;
+                              setGradesInput({
+                                ...gradesInput,
+                                [student._id]: {
+                                  ...gradesInput[student._id],
+                                  studentId: student._id,
+                                  score: absent ? 0 : (gradesInput[student._id]?.score || 0),
+                                  isAbsent: absent,
+                                  comment: absent ? 'Absent' : (gradesInput[student._id]?.comment || '')
+                                }
+                              });
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input 
+                            placeholder={isAbsent ? "Raison absence..." : "Commentaire (optionnel)"}
+                            value={gradesInput[student._id]?.comment || ''}
+                            className={isAbsent ? 'bg-yellow-50' : ''}
+                            onChange={(e) => {
+                              setGradesInput({
+                                ...gradesInput,
+                                [student._id]: {
+                                  ...gradesInput[student._id],
+                                  studentId: student._id,
+                                  comment: e.target.value
+                                }
+                              });
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {isAbsent ? (
+                            <Badge variant="secondary" className="text-xs">ABS</Badge>
+                          ) : currentScore > 0 ? (
+                            <Badge variant="default" className="text-xs">
+                              {currentScore >= 10 ? '✓' : '⚠'}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">-</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
+
+              {/* Statistiques en temps réel */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-semibold mb-2">Aperçu des notes saisies</h4>
+                <div className="grid grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Total étudiants:</span>
+                    <div className="font-medium">{studentsToGrade.length}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Notes saisies:</span>
+                    <div className="font-medium text-green-600">
+                      {Object.values(gradesInput).filter(g => g.score > 0 && !g.isAbsent).length}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Absents:</span>
+                    <div className="font-medium text-yellow-600">
+                      {Object.values(gradesInput).filter(g => g.isAbsent).length}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Moyenne:</span>
+                    <div className="font-medium text-blue-600">
+                      {(() => {
+                        const validGrades = Object.values(gradesInput).filter(g => g.score > 0 && !g.isAbsent);
+                        if (validGrades.length === 0) return '-';
+                        const avg = validGrades.reduce((sum, g) => sum + g.score, 0) / validGrades.length;
+                        return avg.toFixed(2);
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               <div className="flex justify-end space-x-2">
                 <Button 
@@ -989,7 +1221,7 @@ export function GradesAssessment() {
         open={showCreateDialog} 
         onOpenChange={setShowCreateDialog}
       >
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nouvelle évaluation</DialogTitle>
             <DialogDescription>
@@ -997,152 +1229,248 @@ export function GradesAssessment() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Titre de l&apos;évaluation</Label>
-              <Input 
-                id="title"
-                value={newAssessment.title}
-                onChange={(e) => setNewAssessment({...newAssessment, title: e.target.value})}
-                placeholder="Ex: Contrôle sur les fractions"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+          <Tabs defaultValue="basic" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="basic">Informations</TabsTrigger>
+              <TabsTrigger value="config">Configuration</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="basic" className="space-y-4 mt-4">
+              {/* Informations de base */}
               <div className="space-y-2">
-                <Label htmlFor="class">Classe</Label>
-                <Select
-                  value={newAssessment.classId}
-                  onValueChange={(value) => setNewAssessment({...newAssessment, classId: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((cls) => (
-                      <SelectItem key={cls._id} value={cls._id}>
-                        {cls.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="subject">Matière</Label>
-                <Select
-                  value={newAssessment.subject}
-                  onValueChange={(value) => setNewAssessment({...newAssessment, subject: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map((subject) => (
-                      <SelectItem key={subject} value={subject}>
-                        {subject}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="type">Type d&apos;évaluation</Label>
-                <Select
-                  value={newAssessment.type}
-                  onValueChange={(value: 'devoir' | 'controle' | 'oral' | 'projet' | 'composition') => 
-                    setNewAssessment({...newAssessment, type: value})
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="devoir">Devoir</SelectItem>
-                    <SelectItem value="controle">Contrôle</SelectItem>
-                    <SelectItem value="composition">Composition</SelectItem>
-                    <SelectItem value="oral">Oral</SelectItem>
-                    <SelectItem value="projet">Projet</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date">Date de l&apos;évaluation</Label>
+                <Label htmlFor="title">Titre de l&apos;évaluation <span className="text-red-500">*</span></Label>
                 <Input 
-                  id="date"
-                  type="date"
-                  value={newAssessment.date}
-                  onChange={(e) => setNewAssessment({...newAssessment, date: e.target.value})}
+                  id="title"
+                  value={newAssessment.title}
+                  onChange={(e) => updateFormData('title', e.target.value)}
+                  placeholder="Ex: Contrôle sur les fractions"
+                  className={formErrors.title ? 'border-red-500' : ''}
                 />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="semester">Semestre</Label>
-                <Select
-                  value={newAssessment.semester?.toString()}
-                  onValueChange={(value) => setNewAssessment({...newAssessment, semester: parseInt(value)})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Semestre 1</SelectItem>
-                    <SelectItem value="2">Semestre 2</SelectItem>
-                    <SelectItem value="3">Semestre 3</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="academicYear">Année académique</Label>
-                <Select
-                  value={newAssessment.academicYear}
-                  onValueChange={(value) => setNewAssessment({...newAssessment, academicYear: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2025-2026">2025-2026</SelectItem>
-                    <SelectItem value="2024-2025">2024-2025</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description (optionnelle)</Label>
-              <Textarea 
-                id="description"
-                value={newAssessment.description}
-                onChange={(e) => setNewAssessment({...newAssessment, description: e.target.value})}
-                placeholder="Description de l'évaluation"
-                rows={3}
-              />
-            </div>
-
-            <div className="flex justify-end space-x-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setShowCreateDialog(false)}
-              >
-                Annuler
-              </Button>
-              <Button 
-                onClick={handleCreateAssessment}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <LoadingSpinner size="sm" className="mr-2" />
-                ) : (
-                  <Plus className="mr-2 h-4 w-4" />
+                {formErrors.title && (
+                  <p className="text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {formErrors.title}
+                  </p>
                 )}
-                Créer l&apos;évaluation
-              </Button>
-            </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="class">Classe <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={newAssessment.classId}
+                    onValueChange={(value) => updateFormData('classId', value)}
+                  >
+                    <SelectTrigger className={formErrors.classId ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Sélectionner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes.map((cls) => (
+                        <SelectItem key={cls._id} value={cls._id}>
+                          {cls.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formErrors.classId && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {formErrors.classId}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subject">Matière <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={newAssessment.subject}
+                    onValueChange={(value) => updateFormData('subject', value)}
+                  >
+                    <SelectTrigger className={formErrors.subject ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Sélectionner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subjects.map((subject) => (
+                        <SelectItem key={subject} value={subject}>
+                          {subject}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formErrors.subject && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {formErrors.subject}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="type">Type <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={newAssessment.type}
+                    onValueChange={(value: 'devoir' | 'controle' | 'oral' | 'projet' | 'composition') => 
+                      updateFormData('type', value)
+                    }
+                  >
+                    <SelectTrigger className={formErrors.type ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Sélectionner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="devoir">Devoir</SelectItem>
+                      <SelectItem value="controle">Contrôle</SelectItem>
+                      <SelectItem value="composition">Composition</SelectItem>
+                      <SelectItem value="oral">Oral</SelectItem>
+                      <SelectItem value="projet">Projet</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {formErrors.type && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {formErrors.type}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="date">Date <span className="text-red-500">*</span></Label>
+                  <Input 
+                    id="date"
+                    type="date"
+                    value={newAssessment.date}
+                    onChange={(e) => updateFormData('date', e.target.value)}
+                    className={formErrors.date ? 'border-red-500' : ''}
+                  />
+                  {formErrors.date && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {formErrors.date}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="config" className="space-y-4 mt-4">
+              {/* Configuration avancée */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="semester">Semestre <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={newAssessment.semester?.toString()}
+                    onValueChange={(value) => updateFormData('semester', parseInt(value))}
+                  >
+                    <SelectTrigger className={formErrors.semester ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Sélectionner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Semestre 1</SelectItem>
+                      <SelectItem value="2">Semestre 2</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {formErrors.semester && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {formErrors.semester}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="academicYear">Année académique <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={newAssessment.academicYear}
+                    onValueChange={(value) => updateFormData('academicYear', value)}
+                  >
+                    <SelectTrigger className={formErrors.academicYear ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Sélectionner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2025-2026">2025-2026</SelectItem>
+                      <SelectItem value="2024-2025">2024-2025</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {formErrors.academicYear && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {formErrors.academicYear}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="coefficient">Coefficient</Label>
+                  <Input 
+                    id="coefficient"
+                    type="number"
+                    min="0.5"
+                    max="10"
+                    step="0.5"
+                    value={newAssessment.coefficient || 1}
+                    onChange={(e) => updateFormData('coefficient', parseFloat(e.target.value) || 1)}
+                    placeholder="1"
+                  />
+                  <p className="text-xs text-gray-500">Par défaut: 1</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="maxScore">Note max</Label>
+                  <Input 
+                    id="maxScore"
+                    type="number"
+                    min="10"
+                    max="100"
+                    step="1"
+                    value={newAssessment.maxScore || 20}
+                    onChange={(e) => updateFormData('maxScore', parseInt(e.target.value) || 20)}
+                    placeholder="20"
+                  />
+                  <p className="text-xs text-gray-500">Par défaut: 20</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description (optionnelle)</Label>
+                <Textarea 
+                  id="description"
+                  value={newAssessment.description}
+                  onChange={(e) => updateFormData('description', e.target.value)}
+                  placeholder="Description de l'évaluation"
+                  rows={2}
+                  className={formErrors.description ? 'border-red-500' : ''}
+                />
+                {formErrors.description && (
+                  <p className="text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {formErrors.description}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500">
+                  {newAssessment.description?.length || 0}/500 caractères
+                </p>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* Boutons d'action - toujours visibles */}
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCreateDialog(false)}
+            >
+              Annuler
+            </Button>
+            <Button 
+              onClick={handleCreateAssessment}
+              disabled={!isFormValid || isSubmitting}
+            >
+              {isSubmitting ? (
+                <LoadingSpinner size="sm" className="mr-2" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
+              Créer l&apos;évaluation
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1198,6 +1526,28 @@ export function GradesAssessment() {
               Supprimer
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog pour les statistiques d'évaluation */}
+      <Dialog 
+        open={showStatsDialog} 
+        onOpenChange={setShowStatsDialog}
+      >
+        <DialogContent className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Statistiques de l&apos;évaluation</DialogTitle>
+            <DialogDescription>
+              Analyse détaillée des performances et résultats
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedAssessment && (
+            <EvaluationStats 
+              evaluationId={selectedAssessment._id || selectedAssessment.id || ''}
+              onClose={() => setShowStatsDialog(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
