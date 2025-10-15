@@ -1,6 +1,7 @@
 const Grade = require('../models/Grade');
 const User = require('../models/User');
 const Class = require('../models/Class');
+const Evaluation = require('../models/Evaluation');
 const mongoose = require('mongoose');
 
 // Obtenir toutes les notes d'une classe par matière, semestre et année académique
@@ -177,12 +178,33 @@ exports.createGrade = async (req, res) => {
       });
     }
     
-    // Création de la note
+    // NOTE: Cette méthode est dépréciée mais maintenue temporairement pour compatibilité
+    // Les nouvelles notes doivent être créées via le système d'évaluation en 2 étapes
+    
+    // Création d'une évaluation temporaire pour maintenir la compatibilité
+    const tempEvaluation = await Evaluation.create({
+      teacherId: req.user.userId,
+      classId,
+      subjectId: null, // Sera mis à jour plus tard si nécessaire
+      schoolId: req.user.schoolId,
+      title: title + ' (Migration)',
+      type: evaluationType,
+      plannedDate: new Date(),
+      semester,
+      academicYear,
+      status: 'terminee',
+      maxScore: maxScore || 20,
+      coefficient: coefficient || 1,
+      isLegacyGrade: true // Marqueur pour les notes migrées
+    });
+
+    // Création de la note avec la référence à l'évaluation temporaire
     const newGrade = new Grade({
       studentId,
-      teacherId: req.user._id, // ID de l'enseignant connecté
+      teacherId: req.user.userId,
       classId,
-      schoolId: req.user.schoolId, // École de l'enseignant
+      schoolId: req.user.schoolId,
+      evaluationId: tempEvaluation._id, // Référence à l'évaluation temporaire
       subject,
       evaluationType,
       score,
@@ -193,8 +215,8 @@ exports.createGrade = async (req, res) => {
       semester,
       academicYear,
       coefficient: coefficient || 1,
-      homeworkId,
-      isPublished: isPublished !== undefined ? isPublished : false
+      isPublished: isPublished !== undefined ? isPublished : false,
+      isLegacyGrade: true // Marqueur pour les notes créées via l'ancien système
     });
     
     // Sauvegarde de la note dans la base de données
@@ -579,65 +601,19 @@ exports.getTeacherAssessments = async (req, res) => {
 // Créer une nouvelle évaluation
 exports.createAssessment = async (req, res) => {
   try {
-    const teacherId = req.user.userId;
-    const { 
-      title, 
-      classId, 
-      subject, 
-      evaluationType, 
-      date, 
-      semester, 
-      academicYear, 
-      description 
-    } = req.body;
-    
-    // Validation des champs requis
-    if (!title || !classId || !subject || !evaluationType) {
-      return res.status(400).json({
-        success: false,
-        message: 'Les champs title, classId, subject et evaluationType sont obligatoires'
-      });
-    }
-    
-    // Récupérer les étudiants de la classe
-    const classInfo = await Class.findById(classId).populate('students');
-    if (!classInfo) {
-      return res.status(404).json({
-        success: false,
-        message: 'Classe non trouvée'
-      });
-    }
-    
-    // Créer une évaluation vide pour chaque étudiant de la classe
-    const assessmentPromises = classInfo.students.map(student => {
-      return new Grade({
-        studentId: student._id,
-        teacherId: teacherId,
-        classId: classId,
-        subject: subject,
-        title: title,
-        evaluationType: evaluationType,
-        evaluationDate: date || new Date(),
-        semester: semester || 1,
-        academicYear: academicYear || '2025-2026',
-        description: description || '',
-        score: null, // Pas encore noté
-        coefficient: 1,
-        isPublished: false
-      }).save();
-    });
-    
-    const createdAssessments = await Promise.all(assessmentPromises);
-    
-    return res.status(201).json({
-      success: true,
-      message: 'Évaluation créée avec succès',
-      data: {
-        _id: createdAssessments[0]._id,
-        title: title,
-        classId: classId,
-        totalStudents: createdAssessments.length
-      }
+    // Cette méthode est dépréciée en faveur du nouveau système d'évaluation
+    return res.status(410).json({
+      success: false,
+      message: 'Cette méthode de création d\'évaluation est dépréciée. Veuillez utiliser le nouveau système d\'évaluation en 2 étapes.',
+      details: {
+        reason: 'Migration vers le nouveau système d\'évaluation',
+        newEndpoint: '/api/evaluations',
+        workflow: [
+          '1. Créer une évaluation via POST /api/evaluations',
+          '2. Saisir les notes via POST /api/evaluations/:id/grades'
+        ]
+      },
+      redirectTo: '/api/evaluations'
     });
   } catch (error) {
     console.error('Erreur lors de la création de l\'évaluation:', error);

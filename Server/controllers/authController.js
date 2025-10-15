@@ -41,7 +41,11 @@ exports.login = async (req, res) => {
       const Admin = require('../models/Admin');
       await Admin.findOneAndUpdate({ email: user.email }, { lastLogin: new Date() });
     }
-    const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ 
+      userId: user._id, 
+      role: user.role, 
+      schoolId: user.schoolId?._id 
+    }, process.env.JWT_SECRET, { expiresIn: '1d' });
     
     // Préparer l'objet utilisateur avec les informations de l'école
     const userResponse = {

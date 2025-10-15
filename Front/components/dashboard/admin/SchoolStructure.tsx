@@ -176,7 +176,7 @@ export function SchoolStructure() {
         return;
       }
 
-      const url = `/api/users/students/unassigned/${schoolId}`;
+      const url = `http://localhost:5000/api/users/students/unassigned/${schoolId}`;
       console.log('🌐 URL API:', url);
 
       const response = await fetch(url, {
@@ -279,7 +279,7 @@ export function SchoolStructure() {
       const schoolId = '68c7700cd9f7c4207d3c9ea6'; // Force l'ID de "Les Pedagogues"
       console.log('🏫 SchoolId:', schoolId);
 
-      const url = `/api/classes/school/${schoolId}`; // Toujours utiliser l'endpoint avec population
+      const url = `http://localhost:5000/api/classes/school/${schoolId}`; // Toujours utiliser l'endpoint avec population
       console.log('🌐 URL:', url);
 
       const response = await fetch(url, {
@@ -350,7 +350,7 @@ export function SchoolStructure() {
       const schoolId = '68c7700cd9f7c4207d3c9ea6'; // ID fixe de "Les Pedagogues"
       console.log('🏫 SchoolId:', schoolId);
 
-      const url = `/api/subjects/school/${schoolId}`;
+      const url = `http://localhost:5000/api/subjects/school/${schoolId}`;
       console.log('🌐 URL:', url);
 
       const response = await fetch(url, {
@@ -422,7 +422,7 @@ export function SchoolStructure() {
         academicYear: createClassForm.academicYear || new Date().getFullYear().toString()
       };
 
-      const response = await fetch('/api/classes', {
+      const response = await fetch('http://localhost:5000/api/classes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -481,7 +481,7 @@ export function SchoolStructure() {
       console.log('🔍 Type de teacherId:', typeof subjectData.teacherId);
       console.log('🧑‍🏫 Enseignants disponibles:', schoolTeachers.map(t => ({ id: t._id || t.id, name: t.name })));
 
-      const response = await fetch('/api/subjects', {
+      const response = await fetch('http://localhost:5000/api/subjects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -659,7 +659,7 @@ export function SchoolStructure() {
         return;
       }
 
-      const response = await fetch('/api/users/students/assign', {
+      const response = await fetch('http://localhost:5000/api/users/students/assign', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

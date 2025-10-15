@@ -30,7 +30,7 @@ interface Grade {
   coefficient: number;
   date: string;
   teacher: string;
-  type: 'devoir' | 'controle' | 'oral' | 'projet';
+  type: 'devoir' | 'composition' | 'oral' | 'projet';
   comments?: string;
 }
 
@@ -72,7 +72,7 @@ export function GradesReports() {
       coefficient: 2,
       date: '2024-07-20',
       teacher: 'M. Dubois',
-      type: 'controle',
+      type: 'composition',
       comments: 'Excellente maîtrise des concepts'
     },
     {
@@ -124,7 +124,7 @@ export function GradesReports() {
       coefficient: 1,
       date: '2024-07-16',
       teacher: 'Mme. Garcia',
-      type: 'controle'
+      type: 'composition'
     },
     {
       id: '6',
@@ -286,7 +286,7 @@ export function GradesReports() {
   const getTypeLabel = (type: string) => {
     switch (type) {
       case 'devoir': return 'Devoir';
-      case 'controle': return 'Contrôle';
+      case 'composition': return 'Contrôle';
       case 'oral': return 'Oral';
       case 'projet': return 'Projet';
       default: return type;
@@ -296,7 +296,7 @@ export function GradesReports() {
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'devoir': return 'bg-blue-100 text-blue-800';
-      case 'controle': return 'bg-purple-100 text-purple-800';
+      case 'composition': return 'bg-purple-100 text-purple-800';
       case 'oral': return 'bg-orange-100 text-orange-800';
       case 'projet': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';

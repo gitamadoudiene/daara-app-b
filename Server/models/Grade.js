@@ -23,7 +23,14 @@ const gradeSchema = new mongoose.Schema({
     required: true 
   },
   
-  // Informations sur la matière et l'évaluation
+  // Référence à l'évaluation programmée
+  evaluationId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Evaluation',
+    required: true 
+  },
+  
+  // Informations sur la matière et l'évaluation (dénormalisées pour performance)
   subject: { 
     type: String, 
     required: true 
@@ -73,6 +80,15 @@ const gradeSchema = new mongoose.Schema({
     default: Date.now 
   },
   
+  // Gestion des absences
+  isAbsent: { 
+    type: Boolean, 
+    default: false 
+  }, // Si l'élève était absent lors de l'évaluation
+  absentReason: { 
+    type: String 
+  }, // Raison de l'absence (maladie, etc.)
+  
   // Autres métadonnées
   coefficient: { 
     type: Number, 
@@ -96,66 +112,136 @@ const gradeSchema = new mongoose.Schema({
 gradeSchema.index({ studentId: 1, subject: 1, semester: 1, academicYear: 1 });
 gradeSchema.index({ classId: 1, subject: 1, evaluationType: 1 });
 gradeSchema.index({ teacherId: 1 });
+gradeSchema.index({ evaluationId: 1 }); // Nouveau index pour les évaluations
 
 // Méthode virtuelle pour calculer la note sur 20
 gradeSchema.virtual('scoreOn20').get(function() {
   return (this.score / this.maxScore) * 20;
 });
 
-// Méthode statique pour calculer la moyenne d'un étudiant dans une matière
-gradeSchema.statics.calculateAverage = async function(studentId, subject, semester, academicYear) {
+// Méthode statique pour calculer la moyenne d'un étudiant dans une matière selon le nouveau système
+gradeSchema.statics.calculateSubjectAverage = async function(studentId, subjectName, semester, academicYear) {
+  // Récupérer toutes les notes de l'élève pour cette matière
   const grades = await this.find({ 
     studentId, 
-    subject, 
+    subject: subjectName, 
     semester, 
     academicYear,
-    isPublished: true
+    isPublished: true,
+    isAbsent: false // Exclure les absences
   });
   
   if (grades.length === 0) return null;
   
-  let totalWeightedScore = 0;
-  let totalCoefficient = 0;
+  // Séparer devoirs et examens
+  const homeworks = grades.filter(g => g.evaluationType !== 'examen');
+  const exams = grades.filter(g => g.evaluationType === 'examen');
   
-  grades.forEach(grade => {
-    const scoreOn20 = (grade.score / grade.maxScore) * 20;
-    totalWeightedScore += scoreOn20 * grade.coefficient;
-    totalCoefficient += grade.coefficient;
+  // Calculer moyenne des devoirs
+  let homeworkAverage = null;
+  if (homeworks.length > 0) {
+    let totalWeightedScore = 0;
+    let totalCoefficient = 0;
+    
+    homeworks.forEach(homework => {
+      const scoreOn20 = (homework.score / homework.maxScore) * 20;
+      totalWeightedScore += scoreOn20 * homework.coefficient;
+      totalCoefficient += homework.coefficient;
+    });
+    
+    homeworkAverage = totalCoefficient > 0 ? totalWeightedScore / totalCoefficient : null;
+  }
+  
+  // Récupérer note d'examen
+  let examScore = null;
+  if (exams.length > 0) {
+    const exam = exams[0]; // Un seul examen par semestre
+    examScore = (exam.score / exam.maxScore) * 20;
+  }
+  
+  // Calculer moyenne finale selon le système sénégalais (50% devoirs + 50% examen)
+  let finalAverage = null;
+  if (homeworkAverage !== null && examScore !== null) {
+    finalAverage = (homeworkAverage * 0.5) + (examScore * 0.5);
+  } else if (homeworkAverage !== null) {
+    finalAverage = homeworkAverage; // Si pas d'examen
+  } else if (examScore !== null) {
+    finalAverage = examScore; // Si pas de devoirs
+  }
+  
+  return {
+    homeworkAverage,
+    examScore,
+    finalAverage,
+    homeworkCount: homeworks.length,
+    hasExam: exams.length > 0
+  };
+};
+
+// Méthode statique pour créer des notes à partir d'une évaluation
+gradeSchema.statics.createGradesFromEvaluation = async function(evaluationId, gradesData) {
+  const Evaluation = mongoose.model('Evaluation');
+  const evaluation = await Evaluation.findById(evaluationId);
+  
+  if (!evaluation) {
+    throw new Error('Évaluation non trouvée');
+  }
+  
+  const grades = [];
+  
+  for (const gradeData of gradesData) {
+    const grade = new this({
+      evaluationId,
+      studentId: gradeData.studentId,
+      teacherId: evaluation.teacherId,
+      classId: evaluation.classId,
+      schoolId: evaluation.schoolId,
+      subject: gradeData.subject || evaluation.subjectId.name, // Utiliser le nom de la matière
+      evaluationType: evaluation.type,
+      score: gradeData.score,
+      maxScore: evaluation.maxScore || 20,
+      title: evaluation.title,
+      description: evaluation.description,
+      comment: gradeData.comment,
+      semester: evaluation.semester,
+      academicYear: evaluation.academicYear,
+      evaluationDate: evaluation.actualDate || evaluation.plannedDate,
+      coefficient: evaluation.coefficient,
+      isAbsent: gradeData.isAbsent || false,
+      absentReason: gradeData.absentReason,
+      isPublished: false // Par défaut non publié
+    });
+    
+    await grade.save();
+    grades.push(grade);
+  }
+  
+  // Mettre à jour les statistiques de l'évaluation
+  await evaluation.calculateStats();
+  
+  return grades;
+};
+
+// Méthode statique pour publier les notes d'une évaluation
+gradeSchema.statics.publishGradesForEvaluation = async function(evaluationId, publishedBy) {
+  const result = await this.updateMany(
+    { evaluationId, isPublished: false },
+    { 
+      $set: { 
+        isPublished: true,
+        publishedAt: new Date(),
+        publishedBy 
+      } 
+    }
+  );
+  
+  // Mettre à jour le statut de l'évaluation
+  const Evaluation = mongoose.model('Evaluation');
+  await Evaluation.findByIdAndUpdate(evaluationId, {
+    status: 'publiee'
   });
   
-  return totalCoefficient > 0 ? totalWeightedScore / totalCoefficient : null;
+  return result;
 };
 
-// Méthode statique pour calculer la moyenne de classe
-gradeSchema.statics.calculateClassAverage = async function(classId, subject, semester, academicYear) {
-  const aggregation = await this.aggregate([
-    { 
-      $match: { 
-        classId: mongoose.Types.ObjectId(classId),
-        subject, 
-        semester, 
-        academicYear,
-        isPublished: true
-      } 
-    },
-    { 
-      $group: { 
-        _id: "$studentId",
-        averageScore: { $avg: { $multiply: [{ $divide: ["$score", "$maxScore"] }, 20, "$coefficient"] } },
-        totalCoefficient: { $sum: "$coefficient" }
-      } 
-    },
-    {
-      $group: {
-        _id: null,
-        classAverage: { $avg: { $divide: ["$averageScore", "$totalCoefficient"] } }
-      }
-    }
-  ]);
-  
-  return aggregation.length > 0 ? aggregation[0].classAverage : null;
-};
-
-const Grade = mongoose.model('Grade', gradeSchema);
-
-module.exports = Grade;
+module.exports = mongoose.model('Grade', gradeSchema);

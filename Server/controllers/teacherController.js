@@ -328,7 +328,7 @@ exports.getTeacherClasses = async (req, res) => {
 };// Fonction pour récupérer les matières d'un enseignant connecté
 exports.getTeacherSubjects = async (req, res) => {
   try {
-    const teacherId = req.user.id;
+    const teacherId = req.user.userId; // Correction: utiliser userId au lieu de id
     console.log('Récupération des matières pour l\'enseignant ID:', teacherId);
     
     // Récupérer les informations de l'enseignant

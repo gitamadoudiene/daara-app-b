@@ -19,6 +19,11 @@ const subjectRoutes = require('./routes/subject');
 const scheduleRoutes = require('./routes/schedule');
 const gradeRoutes = require('./routes/grade');
 
+// Nouvelles routes pour le système d'évaluation
+const evaluationRoutes = require('./routes/evaluation');
+const bulletinRoutes = require('./routes/bulletin');
+const coefficientRoutes = require('./routes/coefficient');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dashboard', dashboardRoutes);
@@ -29,6 +34,11 @@ app.use('/api/classes', classRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/grades', gradeRoutes);
+
+// Nouvelles routes pour le système d'évaluation
+app.use('/api/evaluations', evaluationRoutes);
+app.use('/api/bulletins', bulletinRoutes);
+app.use('/api/coefficients', coefficientRoutes);
 
 const PORT = process.env.PORT || 5000;
 

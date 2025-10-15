@@ -29,7 +29,7 @@ interface Assessment {
   class?: string;
   classId: string;
   subject: string;
-  type: 'devoir' | 'controle' | 'oral' | 'projet';
+  type: 'devoir' | 'controle' | 'oral' | 'projet' | 'examen' | 'presentation';
   date: string;
   totalStudents: number;
   gradedStudents: number;
@@ -173,7 +173,8 @@ export function GradesAssessment() {
     const fetchAssessments = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('http://localhost:5000/api/grades/teacher/assessments', {
+        // Utiliser le nouveau endpoint des évaluations
+        const response = await fetch('http://localhost:5000/api/evaluations/teacher', {
           headers: { 
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
@@ -183,23 +184,24 @@ export function GradesAssessment() {
         
         if (data.success) {
           console.log('Évaluations chargées:', data.data);
-          // Transformez les données pour les adapter à l'interface Assessment
-          const formattedAssessments = data.data.map((assessment: any) => ({
-            _id: assessment._id,
-            id: assessment._id, // Pour la compatibilité avec l'interface
-            title: assessment.title,
-            class: assessment.className || assessment.class?.name || 'N/A',
-            classId: assessment.classId || assessment.class?._id,
-            subject: assessment.subject,
-            type: assessment.evaluationType || assessment.type,
-            date: assessment.evaluationDate || assessment.date,
-            totalStudents: assessment.totalStudents || assessment.class?.students?.length || 0,
-            gradedStudents: assessment.gradedStudents || 0,
-            averageGrade: assessment.averageGrade || 0,
-            status: assessment.status || 'pending',
-            semester: assessment.semester || 1,
-            academicYear: assessment.academicYear || '2025-2026',
-            description: assessment.description || ''
+          // Transformer les données du nouveau système pour l'interface existante
+          const formattedAssessments = data.data.map((evaluation: any) => ({
+            _id: evaluation._id,
+            id: evaluation._id,
+            title: evaluation.title,
+            class: evaluation.classId?.name || 'N/A',
+            classId: evaluation.classId?._id || evaluation.classId,
+            subject: evaluation.subject || 'N/A',
+            type: evaluation.type, // 'devoir', 'examen', etc.
+            date: evaluation.plannedDate,
+            totalStudents: evaluation.classId?.students?.length || 0,
+            gradedStudents: evaluation.submittedGrades || 0,
+            averageGrade: evaluation.averageScore || 0,
+            status: evaluation.status === 'programmee' ? 'pending' : 
+                    evaluation.status === 'en_cours' ? 'inProgress' : 'completed',
+            semester: evaluation.semester || 1,
+            academicYear: evaluation.academicYear || '2025-2026',
+            description: evaluation.description || ''
           }));
           
           setAssessments(formattedAssessments);
@@ -253,6 +255,8 @@ export function GradesAssessment() {
       case 'controle': return 'Contrôle';
       case 'oral': return 'Oral';
       case 'projet': return 'Projet';
+      case 'examen': return 'Examen';
+      case 'presentation': return 'Présentation';
       default: return type;
     }
   };
@@ -263,6 +267,8 @@ export function GradesAssessment() {
       case 'controle': return 'bg-purple-100 text-purple-800';
       case 'oral': return 'bg-orange-100 text-orange-800';
       case 'projet': return 'bg-green-100 text-green-800';
+      case 'examen': return 'bg-red-100 text-red-800';
+      case 'presentation': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -314,7 +320,8 @@ export function GradesAssessment() {
         
         // Ensuite, récupérer les notes existantes pour cette évaluation
         try {
-          const gradesResponse = await fetch(`http://localhost:5000/api/grades/assessment/${assessmentId}/grades`, {
+          // Utiliser le nouveau endpoint pour récupérer les étudiants et notes d'une évaluation
+          const gradesResponse = await fetch(`http://localhost:5000/api/evaluations/${assessmentId}/students`, {
             headers: { 
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
@@ -395,8 +402,8 @@ export function GradesAssessment() {
       
       console.log('Notes filtrées à soumettre:', gradesToSubmit);
       
-      // Utiliser l'URL correcte pour soumettre les notes
-      const response = await fetch(`http://localhost:5000/api/grades/assessment/${selectedAssessment._id || selectedAssessment.id}/grades`, {
+      // Utiliser le nouveau endpoint pour soumettre les notes
+      const response = await fetch(`http://localhost:5000/api/evaluations/${selectedAssessment._id || selectedAssessment.id}/grades`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -404,7 +411,7 @@ export function GradesAssessment() {
         },
         body: JSON.stringify({
           grades: gradesToSubmit,
-          assessmentId: selectedAssessment._id || selectedAssessment.id
+          evaluationId: selectedAssessment._id || selectedAssessment.id
         })
       });
       
@@ -477,52 +484,68 @@ export function GradesAssessment() {
       const selectedClass = classes.find(c => c._id === newAssessment.classId);
       console.log('Classe sélectionnée:', selectedClass);
       
-      // Préparer les données en suivant le format attendu par l'API
-      const assessmentData = {
+      // Préparer les données pour le nouveau système d'évaluation
+      const evaluationData = {
         title: newAssessment.title,
         classId: newAssessment.classId,
-        subject: newAssessment.subject,
-        evaluationType: newAssessment.type, // Utiliser evaluationType au lieu de type
-        date: newAssessment.date,
-        semester: newAssessment.semester,
+        subjectId: null, // Sera résolu côté serveur si nécessaire
+        type: newAssessment.type, // 'devoir', 'controle', etc.
+        plannedDate: newAssessment.date ? new Date(newAssessment.date).toISOString() : new Date().toISOString(),
+        semester: newAssessment.semester, // Sera converti côté serveur
         academicYear: newAssessment.academicYear,
         description: newAssessment.description,
-        // Ajouter ces infos pour le suivi
-        totalStudents: selectedClass ? selectedClass.studentCount || 0 : 0,
-        gradedStudents: 0,
-        averageGrade: 0,
-        status: 'pending'
+        maxScore: 20, // Score par défaut
+        coefficient: 1, // Coefficient par défaut
+        duration: 60, // Durée par défaut en minutes
+        subject: newAssessment.subject // Ajout du subject comme string pour compatibilité
       };
       
-      console.log('Données à envoyer:', assessmentData);
+      console.log('Données à envoyer:', evaluationData);
+      console.log('Matière sélectionnée:', newAssessment.subject);
+      console.log('Matières disponibles:', subjects);
       
-      // Utiliser la bonne URL pour l'API
-      const response = await fetch('http://localhost:5000/api/grades/assessment', {
+      // Utiliser le nouveau endpoint d'évaluation
+      const response = await fetch('http://localhost:5000/api/evaluations', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
         },
-        body: JSON.stringify(assessmentData)
+        body: JSON.stringify(evaluationData)
       });
       
       const data = await response.json();
       console.log('Réponse du serveur:', data);
+      console.log('Status de la réponse:', response.status);
+      console.log('Response OK:', response.ok);
       
       if (data.success) {
         toast({
           title: "Évaluation créée",
-          description: "L'évaluation a été créée avec succès.",
+          description: "L'évaluation a été programmée avec succès.",
         });
         
-        // Ajouter la nouvelle évaluation à la liste
-        const newAssessmentWithId = {
-          ...assessmentData,
+        // Convertir la réponse au format attendu par l'interface
+        const newAssessmentWithId: Assessment = {
           _id: data.data._id,
           id: data.data._id,
-          class: selectedClass ? selectedClass.name : 'N/A',
-          type: assessmentData.evaluationType,
-        } as Assessment;
+          title: data.data.title,
+          class: data.data.classId?.name || selectedClass?.name || 'N/A',
+          classId: data.data.classId?._id || data.data.classId,
+          subject: data.data.subjectId?.name || newAssessment.subject || 'N/A',
+          type: data.data.type || newAssessment.type!, // Utiliser le type retourné par l'API
+          date: data.data.plannedDate,
+          totalStudents: data.data.stats?.totalStudents || 0,
+          gradedStudents: data.data.stats?.submittedGrades || 0,
+          averageGrade: 0,
+          status: data.data.status === 'programmee' ? 'pending' : 
+                  data.data.status === 'en_cours' ? 'inProgress' : 'completed',
+          semester: data.data.semester,
+          academicYear: data.data.academicYear,
+          description: data.data.description || ''
+        };
+        
+        console.log('Nouvelle évaluation formatée:', newAssessmentWithId);
         
         setAssessments([...assessments, newAssessmentWithId]);
         
@@ -541,6 +564,7 @@ export function GradesAssessment() {
         setShowCreateDialog(false);
       } else {
         console.error('Erreur lors de la création de l\'évaluation:', data.message);
+        console.error('Données complètes de l\'erreur:', data);
         toast({
           title: "Erreur",
           description: data.message || "Une erreur s'est produite lors de la création de l'évaluation.",
@@ -549,8 +573,9 @@ export function GradesAssessment() {
       }
     } catch (error) {
       console.error('Erreur lors de la création de l\'évaluation:', error);
+      console.error('Détails de l\'erreur:', error);
       toast({
-        title: "Erreur",
+        title: "Erreur de connexion",
         description: "Une erreur s'est produite lors de la communication avec le serveur.",
         variant: "destructive"
       });

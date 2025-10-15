@@ -101,7 +101,7 @@ export function Messages() {
       priority: 'normal',
       category: 'academic',
       childName: 'Emma',
-      attachments: ['controle-algebre-emma.pdf']
+      attachments: ['composition-algebre-emma.pdf']
     },
     {
       id: '2',
