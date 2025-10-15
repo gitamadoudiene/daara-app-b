@@ -190,6 +190,7 @@ const createEvaluation = async (req, res) => {
     let evaluationType = type;
     const typeMapping = {
       'controle': 'devoir',
+      'composition': 'examen',
       'oral': 'presentation',
       'projet': 'projet',
       'devoir': 'devoir'
@@ -274,6 +275,8 @@ const getTeacherEvaluations = async (req, res) => {
     const teacherId = req.user.userId;
     const { academicYear, semester, status } = req.query;
 
+    console.log('Récupération évaluations pour teacherId:', teacherId);
+
     const query = { teacherId };
     if (academicYear) query.academicYear = academicYear;
     if (semester) query.semester = parseInt(semester);
@@ -283,6 +286,16 @@ const getTeacherEvaluations = async (req, res) => {
       .populate('classId', 'name level')
       .populate('subjectId', 'name code')
       .sort({ plannedDate: -1 });
+
+    console.log('Évaluations trouvées:', evaluations.length);
+    if (evaluations.length > 0) {
+      console.log('Première évaluation:', {
+        id: evaluations[0]._id,
+        title: evaluations[0].title,
+        subjectId: evaluations[0].subjectId,
+        classId: evaluations[0].classId
+      });
+    }
 
     res.json({
       success: true,

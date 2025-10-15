@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Download, Upload, Filter, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, Search, Download, Upload, Filter, AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -29,7 +29,7 @@ interface Assessment {
   class?: string;
   classId: string;
   subject: string;
-  type: 'devoir' | 'controle' | 'oral' | 'projet' | 'examen' | 'presentation';
+  type: 'devoir' | 'controle' | 'oral' | 'projet' | 'examen' | 'presentation' | 'composition';
   date: string;
   totalStudents: number;
   gradedStudents: number;
@@ -73,7 +73,9 @@ export function GradesAssessment() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showGradeDialog, setShowGradeDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedAssessment, setSelectedAssessment] = useState<Assessment | null>(null);
+  const [assessmentToDelete, setAssessmentToDelete] = useState<Assessment | null>(null);
   const [studentsToGrade, setStudentsToGrade] = useState<Student[]>([]);
   const [gradesInput, setGradesInput] = useState<{[studentId: string]: GradeInput}>({});
   const [currentSemester, setCurrentSemester] = useState<number>(1);
@@ -184,25 +186,37 @@ export function GradesAssessment() {
         
         if (data.success) {
           console.log('Évaluations chargées:', data.data);
+          console.log('Première évaluation complète:', data.data[0]);
+          
           // Transformer les données du nouveau système pour l'interface existante
-          const formattedAssessments = data.data.map((evaluation: any) => ({
-            _id: evaluation._id,
-            id: evaluation._id,
-            title: evaluation.title,
-            class: evaluation.classId?.name || 'N/A',
-            classId: evaluation.classId?._id || evaluation.classId,
-            subject: evaluation.subject || 'N/A',
-            type: evaluation.type, // 'devoir', 'examen', etc.
-            date: evaluation.plannedDate,
-            totalStudents: evaluation.classId?.students?.length || 0,
-            gradedStudents: evaluation.submittedGrades || 0,
-            averageGrade: evaluation.averageScore || 0,
-            status: evaluation.status === 'programmee' ? 'pending' : 
-                    evaluation.status === 'en_cours' ? 'inProgress' : 'completed',
-            semester: evaluation.semester || 1,
-            academicYear: evaluation.academicYear || '2025-2026',
-            description: evaluation.description || ''
-          }));
+          const formattedAssessments = data.data.map((evaluation: any) => {
+            console.log('Mapping évaluation:', {
+              id: evaluation._id,
+              title: evaluation.title,
+              subjectId: evaluation.subjectId,
+              subjectName: evaluation.subjectId?.name,
+              subject: evaluation.subject
+            });
+            
+            return {
+              _id: evaluation._id,
+              id: evaluation._id,
+              title: evaluation.title,
+              class: evaluation.classId?.name || 'N/A',
+              classId: evaluation.classId?._id || evaluation.classId,
+              subject: evaluation.subjectId?.name || evaluation.subject || 'N/A',
+              type: evaluation.type, // 'devoir', 'examen', etc.
+              date: evaluation.plannedDate,
+              totalStudents: evaluation.classId?.students?.length || 0,
+              gradedStudents: evaluation.submittedGrades || 0,
+              averageGrade: evaluation.averageScore || 0,
+              status: evaluation.status === 'programmee' ? 'pending' : 
+                      evaluation.status === 'en_cours' ? 'inProgress' : 'completed',
+              semester: evaluation.semester || 1,
+              academicYear: evaluation.academicYear || '2025-2026',
+              description: evaluation.description || ''
+            };
+          });
           
           setAssessments(formattedAssessments);
         } else {
@@ -257,6 +271,7 @@ export function GradesAssessment() {
       case 'projet': return 'Projet';
       case 'examen': return 'Examen';
       case 'presentation': return 'Présentation';
+      case 'composition': return 'Composition';
       default: return type;
     }
   };
@@ -269,6 +284,7 @@ export function GradesAssessment() {
       case 'projet': return 'bg-green-100 text-green-800';
       case 'examen': return 'bg-red-100 text-red-800';
       case 'presentation': return 'bg-yellow-100 text-yellow-800';
+      case 'composition': return 'bg-indigo-100 text-indigo-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -457,6 +473,59 @@ export function GradesAssessment() {
       console.error('Erreur lors de la soumission des notes:', error);
       toast({
         title: "Erreur",
+        description: "Une erreur s'est produite lors de la communication avec le serveur.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Supprimer une évaluation
+  const handleDeleteAssessment = async () => {
+    if (!assessmentToDelete) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      console.log('Suppression de l\'évaluation:', assessmentToDelete._id || assessmentToDelete.id);
+      
+      const response = await fetch(`http://localhost:5000/api/evaluations/${assessmentToDelete._id || assessmentToDelete.id}`, {
+        method: 'DELETE',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
+        }
+      });
+      
+      const data = await response.json();
+      console.log('Réponse de suppression:', data);
+      
+      if (data.success || response.ok) {
+        toast({
+          title: "Évaluation supprimée",
+          description: "L'évaluation a été supprimée avec succès.",
+        });
+        
+        // Retirer l'évaluation de la liste
+        setAssessments(assessments.filter(assessment => 
+          assessment._id !== assessmentToDelete._id && assessment.id !== assessmentToDelete.id
+        ));
+        
+        setShowDeleteDialog(false);
+        setAssessmentToDelete(null);
+      } else {
+        console.error('Erreur lors de la suppression:', data.message);
+        toast({
+          title: "Erreur",
+          description: data.message || "Une erreur s'est produite lors de la suppression.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      toast({
+        title: "Erreur de connexion",
         description: "Une erreur s'est produite lors de la communication avec le serveur.",
         variant: "destructive"
       });
@@ -654,6 +723,7 @@ export function GradesAssessment() {
                 <SelectItem value="all">Tous les types</SelectItem>
                 <SelectItem value="devoir">Devoir</SelectItem>
                 <SelectItem value="controle">Contrôle</SelectItem>
+                <SelectItem value="composition">Composition</SelectItem>
                 <SelectItem value="oral">Oral</SelectItem>
                 <SelectItem value="projet">Projet</SelectItem>
               </SelectContent>
@@ -783,9 +853,17 @@ export function GradesAssessment() {
                       <Download className="mr-2 h-4 w-4" />
                       Exporter
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1">
-                      <Upload className="mr-2 h-4 w-4" />
-                      Importer
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => {
+                        setAssessmentToDelete(assessment);
+                        setShowDeleteDialog(true);
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Supprimer
                     </Button>
                     <Button variant="outline" size="sm" className="flex-1">
                       Statistiques
@@ -974,7 +1052,7 @@ export function GradesAssessment() {
                 <Label htmlFor="type">Type d&apos;évaluation</Label>
                 <Select
                   value={newAssessment.type}
-                  onValueChange={(value: 'devoir' | 'controle' | 'oral' | 'projet') => 
+                  onValueChange={(value: 'devoir' | 'controle' | 'oral' | 'projet' | 'composition') => 
                     setNewAssessment({...newAssessment, type: value})
                   }
                 >
@@ -984,6 +1062,7 @@ export function GradesAssessment() {
                   <SelectContent>
                     <SelectItem value="devoir">Devoir</SelectItem>
                     <SelectItem value="controle">Contrôle</SelectItem>
+                    <SelectItem value="composition">Composition</SelectItem>
                     <SelectItem value="oral">Oral</SelectItem>
                     <SelectItem value="projet">Projet</SelectItem>
                   </SelectContent>
@@ -1064,6 +1143,60 @@ export function GradesAssessment() {
                 Créer l&apos;évaluation
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de confirmation de suppression */}
+      <Dialog 
+        open={showDeleteDialog} 
+        onOpenChange={setShowDeleteDialog}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Confirmer la suppression</DialogTitle>
+            <DialogDescription>
+              Êtes-vous sûr de vouloir supprimer cette évaluation ?
+              {assessmentToDelete && (
+                <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                  <p className="font-medium">{assessmentToDelete.title}</p>
+                  <p className="text-sm text-gray-600">
+                    {assessmentToDelete.class} - {assessmentToDelete.subject}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {formatDate(assessmentToDelete.date)}
+                  </p>
+                </div>
+              )}
+              <p className="mt-2 text-red-600 font-medium">
+                Cette action est irréversible.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setAssessmentToDelete(null);
+              }}
+              disabled={isSubmitting}
+            >
+              Annuler
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleDeleteAssessment}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <LoadingSpinner size="sm" className="mr-2" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Supprimer
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
