@@ -70,8 +70,8 @@ interface GradeInput {
 
 export function GradesAssessment() {
   // Fonction utilitaire pour mapper les types serveur vers frontend
-  const mapServerTypeToFrontend = (serverType: string): string => {
-    const serverToFrontendTypeMapping: {[key: string]: string} = {
+  const mapServerTypeToFrontend = (serverType: string): 'devoir' | 'controle' | 'oral' | 'projet' | 'examen' | 'presentation' | 'composition' => {
+    const serverToFrontendTypeMapping: {[key: string]: 'devoir' | 'controle' | 'oral' | 'projet' | 'examen' | 'presentation' | 'composition'} = {
       'devoir': 'devoir',
       'controle': 'controle', 
       'examen': 'composition', // Les compositions sont stockées comme "examen" côté serveur
@@ -80,7 +80,7 @@ export function GradesAssessment() {
       'oral': 'oral'
     };
     
-    return serverToFrontendTypeMapping[serverType] || serverType;
+    return serverToFrontendTypeMapping[serverType] || 'devoir';
   };
 
   const [assessments, setAssessments] = useState<Assessment[]>([]);
@@ -383,7 +383,7 @@ export function GradesAssessment() {
       errors.subject = 'La sélection d\'une matière est obligatoire';
     }
 
-    if (!assessmentData.type || assessmentData.type === '') {
+    if (!assessmentData.type) {
       errors.type = 'Le type d\'évaluation est obligatoire';
     }
 
@@ -436,34 +436,20 @@ export function GradesAssessment() {
   // Récupérer le coefficient par défaut basé sur le niveau de classe et la matière
   const getDefaultCoefficient = async (classId: string, subject: string) => {
     try {
-      console.log('🎯 getDefaultCoefficient appelé avec:', { classId, subject });
       if (!classId || !subject) {
-        console.log('⚠️ classId ou subject manquant');
         return;
       }
       
       const classData = classes.find(c => c._id === classId);
-      console.log('📋 Classe trouvée:', classData);
       if (!classData) {
-        console.log('❌ Aucune classe trouvée pour l\'ID:', classId);
         return;
       }
       
-      // CORRECTION: subject est un nom de matière, pas un subjectId
-      // getSchoolDefaultCoefficient attend (subjectId, classLevel) mais le hook gère aussi les noms de matières
-      console.log('🔍 Appel getSchoolDefaultCoefficient avec subject name:', { subject, classLevel: classData.level });
       const coefficient = getSchoolDefaultCoefficient(subject, classData.level);
-      console.log('🔍 Coefficient par défaut récupéré:', { 
-        subject, 
-        classLevel: classData.level, 
-        coefficient,
-        classData: classData
-      });
       
       if (coefficient > 1) { // Seulement si on a trouvé un coefficient configuré
         setNewAssessment(prev => {
           const updated = { ...prev, coefficient };
-          console.log('✅ Coefficient mis à jour dans newAssessment:', updated);
           return updated;
         });
       }
@@ -475,7 +461,6 @@ export function GradesAssessment() {
   // Charger les paramètres par défaut pour le semestre et l'année académique
   const loadDefaultSettings = () => {
     // Utiliser les paramètres du hook schoolSettings
-    console.log('📋 Paramètres par défaut récupérés:', schoolSettings);
     return {
       semester: schoolSettings.defaultSemester,
       academicYear: schoolSettings.defaultAcademicYear
@@ -485,7 +470,6 @@ export function GradesAssessment() {
   // Initialiser les paramètres par défaut lors de l'ouverture du formulaire
   const initializeFormWithDefaults = () => {
     const defaults = loadDefaultSettings();
-    console.log('🎯 Initialisation du formulaire avec:', defaults);
     setNewAssessment(prev => ({
       ...prev,
       semester: defaults.semester,
@@ -1450,71 +1434,6 @@ export function GradesAssessment() {
 
             <TabsContent value="config" className="space-y-4 mt-4">
               {/* Configuration avancée */}
-              {!isLoadingDefaults && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-sm font-medium text-blue-800">📋 Paramètres par défaut configurés</h4>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={() => {
-                        console.log('🔄 Forcer rechargement des paramètres...');
-                        console.log('📊 schoolSettings actuels:', schoolSettings);
-                        console.log('📊 newAssessment actuel:', newAssessment);
-                        console.log('📊 isLoadingDefaults:', isLoadingDefaults);
-                        console.log('📊 localStorage school-settings:', localStorage.getItem('school-settings'));
-                        
-                        // Forcer le rechargement du hook
-                        refreshSettings();
-                        
-                        // Forcer la mise à jour du formulaire avec les nouvelles valeurs
-                        setTimeout(() => {
-                          const currentSettings = localStorage.getItem('school-settings');
-                          if (currentSettings) {
-                            const parsed = JSON.parse(currentSettings);
-                            console.log('🔄 Application forcée des nouvelles valeurs:', parsed);
-                            setNewAssessment(prev => ({
-                              ...prev,
-                              semester: parsed.defaultSemester,
-                              academicYear: parsed.defaultAcademicYear
-                            }));
-                          }
-                        }, 500);
-                      }}
-                      className="text-xs"
-                    >
-                      🔄 Debug + Sync
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 text-xs text-blue-700">
-                    <div>
-                      <span className="font-medium">Semestre par défaut (schoolSettings):</span> {schoolSettings.defaultSemester}
-                    </div>
-                    <div>
-                      <span className="font-medium">Année par défaut (schoolSettings):</span> {schoolSettings.defaultAcademicYear}
-                    </div>
-                    <div>
-                      <span className="font-medium">Semestre actuel (newAssessment):</span> {newAssessment.semester}
-                    </div>
-                    <div>
-                      <span className="font-medium">Année actuelle (newAssessment):</span> {newAssessment.academicYear}
-                    </div>
-                    <div>
-                      <span className="font-medium">localStorage:</span> {localStorage.getItem('school-settings') || 'Non défini'}
-                    </div>
-                  </div>
-                  {newAssessment.classId && newAssessment.subject && (
-                    <div className="mt-2 text-xs text-blue-700">
-                      <span className="font-medium">Coefficient suggéré:</span> {
-                        (() => {
-                          const classData = classes.find(c => c._id === newAssessment.classId);
-                          return classData ? getSchoolDefaultCoefficient(newAssessment.subject, classData.level) : 1;
-                        })()
-                      }
-                    </div>
-                  )}
-                </div>
-              )}
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

@@ -190,8 +190,6 @@ export function useSchoolDefaults() {
   };
 
   const getDefaultCoefficient = (subjectId: string, classLevel: string): number => {
-    console.log('🔍 getDefaultCoefficient appelé avec:', { subjectId, classLevel });
-    
     // Recherche directe par ID
     const directMatch = coefficients.find(c => {
       const coeffSubjectId = typeof c.subjectId === 'string' ? c.subjectId : c.subjectId._id;
@@ -200,7 +198,6 @@ export function useSchoolDefaults() {
     });
 
     if (directMatch) {
-      console.log('✅ Coefficient trouvé par ID:', directMatch.coefficient);
       return directMatch.coefficient;
     }
 
@@ -213,7 +210,6 @@ export function useSchoolDefaults() {
     });
 
     if (nameMatch) {
-      console.log('✅ Coefficient trouvé par nom:', nameMatch.coefficient);
       return nameMatch.coefficient;
     }
 
@@ -230,13 +226,10 @@ export function useSchoolDefaults() {
         });
 
         if (coefficient) {
-          console.log('✅ Coefficient trouvé par mapping:', coefficient.coefficient);
           return coefficient.coefficient;
         }
       }
     }
-
-    console.log('⚠️ Aucun coefficient configuré, utilisation du défaut');
 
     // Coefficient par défaut basé sur le niveau de classe
     const defaultCoefficients: {[key: string]: number} = {

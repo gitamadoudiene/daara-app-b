@@ -10,7 +10,7 @@ exports.createClass = async (req, res) => {
       academicYear, subjects, teacherId, teachers, resTeacher 
     } = req.body;
     
-    console.log('📝 Données reçues pour création:', { name, level, room, capacity, resTeacher, teacherId });
+    console.log('Données reçues pour création:', { name, level, room, capacity, resTeacher, teacherId });
     
     // Vérifier si l'école existe
     const school = await School.findById(schoolId);
@@ -52,7 +52,7 @@ exports.createClass = async (req, res) => {
     });
     
     const savedClass = await newClass.save();
-    console.log('✅ Classe créée:', { id: savedClass._id, name: savedClass.name, resTeacher: savedClass.resTeacher });
+    console.log('Classe créée:', { id: savedClass._id, name: savedClass.name, resTeacher: savedClass.resTeacher });
     res.status(201).json(savedClass);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -72,36 +72,21 @@ exports.getAllClasses = async (req, res) => {
 
 // Récupérer toutes les classes d'une école spécifique
 exports.getClassesBySchool = async (req, res) => {
-  console.log('\n=== 📚 CONTROLLER: GET CLASSES BY SCHOOL ===');
-  console.log('⚡ Endpoint: GET /api/classes/school/:schoolId');
-  
   try {
     const { schoolId } = req.params;
-    console.log(`🔍 Recherche de classes pour l'école ID: ${schoolId}`);
     
     // NOUVEAU: Traçage détaillé de l'authentification
     if (!req.user) {
       console.warn('⚠️ ANOMALIE: Aucun utilisateur authentifié trouvé dans la requête');
-      console.warn('⚠️ Le middleware auth.js devrait toujours définir req.user, même en mode contournement');
-    } else {
-      console.log(`👤 Utilisateur: ID=${req.user.userId}, Rôle=${req.user.role || 'non spécifié'}`);
-      
-      // Vérifier si c'est un utilisateur fantôme (mode contournement)
-      if (req.user.isGhostUser) {
-        console.log('⚠️ Mode contournement actif: Utilisateur fantôme détecté');
-        console.log('⚠️ L\'accès est accordé sans vérification d\'autorisation réelle');
-      }
     }
     
     // 1. Nettoyage et validation de l'ID d'école
     const cleanSchoolId = schoolId.trim();
-    console.log(`🧹 ID d'école nettoyé: ${cleanSchoolId}`);
     
     // Vérification du format de l'ID avec gestion d'erreur détaillée
     let isValidObjectId = false;
     try {
       isValidObjectId = mongoose.Types.ObjectId.isValid(cleanSchoolId);
-      console.log(`🔢 Validation de l'ID MongoDB: ${isValidObjectId ? 'Valide ✓' : 'Invalide ✗'}`);
     } catch (validationErr) {
       console.error(`❌ Erreur lors de la validation de l'ID: ${validationErr.message}`);
     }
@@ -116,7 +101,6 @@ exports.getClassesBySchool = async (req, res) => {
     }
     
     // 2. Recherche de l'école avec gestion robuste d'erreurs
-    console.log(`🔍 Recherche de l'école avec ID: ${cleanSchoolId}...`);
     
     let school = null;
     try {

@@ -225,8 +225,6 @@ exports.deleteTeacher = async (req, res) => {
 exports.getTeacherClasses = async (req, res) => {
   try {
     const teacherId = req.user.userId; // Utiliser userId au lieu de id
-    console.log('Récupération des classes pour l\'enseignant ID:', teacherId);
-    console.log('Informations sur l\'enseignant connecté:', req.user);
     
     // Importer les modèles nécessaires
     const Schedule = require('../models/Schedule');
@@ -241,7 +239,7 @@ exports.getTeacherClasses = async (req, res) => {
     .populate('subjectId', 'name code')
     .populate('schoolId', 'name');
     
-    console.log(`${schedules.length} créneau(x) d'emploi du temps trouvé(s) pour l'enseignant via Schedule`);
+    
     
     // Méthode 2: Récupérer les classes où l'enseignant est directement assigné
     const directClasses = await Class.find({ 
@@ -250,7 +248,7 @@ exports.getTeacherClasses = async (req, res) => {
     .populate('schoolId', 'name')
     .select('name level section students room studentCount schoolId');
     
-    console.log(`${directClasses.length} classe(s) trouvée(s) via assignation directe`);
+    
     
     // Combiner les deux méthodes et extraire les classes uniques
     const uniqueClasses = new Map();
@@ -305,11 +303,11 @@ exports.getTeacherClasses = async (req, res) => {
     });
     
     const classes = Array.from(uniqueClasses.values());
-    console.log(`${classes.length} classe(s) unique(s) finale(s) pour l'enseignant`);
+    
     
     // Afficher un résumé pour debug
     classes.forEach(cls => {
-      console.log(`- Classe: ${cls.name} (${cls.level}) - ${cls.studentCount} étudiants - Source: ${cls.source}`);
+      
     });
 
     res.json({
@@ -329,7 +327,7 @@ exports.getTeacherClasses = async (req, res) => {
 exports.getTeacherSubjects = async (req, res) => {
   try {
     const teacherId = req.user.userId; // Correction: utiliser userId au lieu de id
-    console.log('Récupération des matières pour l\'enseignant ID:', teacherId);
+    
     
     // Récupérer les informations de l'enseignant
     const teacher = await User.findById(teacherId);
@@ -342,7 +340,7 @@ exports.getTeacherSubjects = async (req, res) => {
     
     // Récupérer les matières de l'enseignant
     const subjects = teacher.subjects || [];
-    console.log('Matières trouvées:', subjects);
+    
     
     res.json({
       success: true,

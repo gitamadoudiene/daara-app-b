@@ -241,10 +241,6 @@ export function CoefficientManagement() {
       return;
     }
 
-    console.log('🔍 Debug - formData:', formData);
-    console.log('🔍 Debug - schoolSettings:', schoolSettings);
-    console.log('🔍 Debug - subjects disponibles:', subjects);
-
     try {
       setIsLoading(true);
       
@@ -456,60 +452,6 @@ export function CoefficientManagement() {
           <div className="flex gap-4 mt-4">
             <Button onClick={saveSchoolSettings}>
               Sauvegarder les paramètres
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                console.log('🔍 Debug Admin - schoolSettings:', schoolSettings);
-                console.log('🔍 Debug Admin - localStorage:', localStorage.getItem('school-settings'));
-                const currentLS = localStorage.getItem('school-settings');
-                if (currentLS) {
-                  console.log('🔍 Debug Admin - localStorage parsé:', JSON.parse(currentLS));
-                }
-              }}
-            >
-              🔍 Debug Paramètres
-            </Button>
-            <Button 
-              variant="secondary" 
-              onClick={() => {
-                console.log('🧪 Création de données test...');
-                const testSettings = {
-                  defaultSemester: 2,
-                  defaultAcademicYear: '2025-2026'
-                };
-                setSchoolSettings(testSettings);
-                localStorage.setItem('school-settings', JSON.stringify(testSettings));
-                console.log('✅ Données test créées:', testSettings);
-                toast.success('Données test créées (Semestre 2, 2025-2026)');
-              }}
-            >
-              🧪 Créer Données Test
-            </Button>
-            <Button 
-              variant="default" 
-              onClick={async () => {
-                try {
-                  console.log('💾 Sauvegarde paramètres en BD...');
-                  const response = await saveSchoolDefaults(
-                    schoolSettings.defaultSemester, 
-                    schoolSettings.defaultAcademicYear
-                  );
-                  
-                  if (response.success) {
-                    toast.success('Paramètres sauvegardés en BD avec succès !');
-                    console.log('✅ Sauvegarde BD réussie:', response.data);
-                  } else {
-                    toast.error('Erreur lors de la sauvegarde en BD');
-                    console.error('❌ Erreur sauvegarde BD:', response.error);
-                  }
-                } catch (error) {
-                  toast.error('Erreur de connexion à la BD');
-                  console.error('❌ Erreur sauvegarde BD:', error);
-                }
-              }}
-            >
-              💾 Sauvegarder en BD
             </Button>
           </div>
         </CardContent>
