@@ -74,7 +74,7 @@ const evaluationSchema = new mongoose.Schema({
     type: Number, 
     required: true,
     min: 0.5,
-    max: 5 
+    max: 10 
   }, // Coefficient de cette évaluation pour le calcul de moyenne
   
   // Statut de l'évaluation

@@ -189,12 +189,18 @@ export function CoefficientManagement() {
       } else {
         const errorText = await response.text();
         console.error('Erreur API coefficients:', response.status, errorText);
-        toast.error('Erreur lors du chargement des coefficients');
+        toast.error('Erreur de chargement des coefficients', {
+          description: 'Impossible de récupérer la liste des coefficients existants',
+          duration: 6000,
+        });
         setCoefficients([]);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des coefficients:', error);
-      toast.error('Erreur lors du chargement des coefficients');
+      toast.error('Erreur de connexion', {
+        description: 'Problème de communication avec le serveur',
+        duration: 6000,
+      });
       setCoefficients([]);
     } finally {
       setIsLoading(false);
@@ -226,10 +232,16 @@ export function CoefficientManagement() {
       localStorage.setItem('school-settings', JSON.stringify(schoolSettings));
       console.log('✅ Paramètres sauvegardés dans localStorage');
       console.log('🔍 Vérification localStorage:', localStorage.getItem('school-settings'));
-      toast.success('Paramètres de l\'école sauvegardés');
+      toast.success('Paramètres de l\'école sauvegardés', {
+        description: `Semestre: ${schoolSettings.defaultSemester}, Année: ${schoolSettings.defaultAcademicYear}`,
+        duration: 4000,
+      });
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
-      toast.error('Erreur lors de la sauvegarde des paramètres');
+      toast.error('Erreur lors de la sauvegarde', {
+        description: 'Impossible de sauvegarder les paramètres de l\'école',
+        duration: 6000,
+      });
     }
   };
 
@@ -237,7 +249,10 @@ export function CoefficientManagement() {
     e.preventDefault();
     
     if (!formData.subjectId || formData.classLevels.length === 0 || formData.coefficient <= 0) {
-      toast.error('Veuillez remplir tous les champs correctement');
+      toast.error('Formulaire incomplet', {
+        description: 'Veuillez sélectionner une matière, au moins un niveau de classe et un coefficient valide',
+        duration: 5000,
+      });
       return;
     }
 
@@ -266,14 +281,23 @@ export function CoefficientManagement() {
         });
 
         if (response.ok) {
-          toast.success('Coefficient modifié');
+          const subjectName = subjects.find(s => s._id === formData.subjectId)?.name || 'Matière';
+          const levelLabel = getClassLevelLabel(formData.classLevels[0]);
+          
+          toast.success('Coefficient modifié avec succès', {
+            description: `${subjectName} - ${levelLabel}: coefficient ${formData.coefficient}`,
+            duration: 4000,
+          });
           setIsDialogOpen(false);
           resetForm();
           loadCoefficients();
         } else {
           const errorText = await response.text();
           console.error('❌ Erreur serveur (modification):', errorText);
-          toast.error('Erreur lors de la sauvegarde: ' + errorText);
+          toast.error('Erreur lors de la modification', {
+            description: `Impossible de modifier le coefficient: ${errorText}`,
+            duration: 6000,
+          });
         }
       } else {
         // Pour la création, on crée un coefficient pour chaque niveau sélectionné
@@ -317,18 +341,31 @@ export function CoefficientManagement() {
         console.log('📊 Résultats:', { successes: successes.length, failures: failures.length });
         
         if (failures.length === 0) {
-          toast.success(`${successes.length} coefficient(s) créé(s) avec succès`);
+          toast.success('Coefficients créés avec succès', {
+            description: `${successes.length} coefficient(s) créé(s) pour la matière sélectionnée`,
+            duration: 4000,
+          });
           setIsDialogOpen(false);
           resetForm();
           loadCoefficients();
+        } else if (successes.length > 0) {
+          toast.warning('Création partiellement réussie', {
+            description: `${successes.length} réussi(s), ${failures.length} échoué(s). Voir la console pour les détails.`,
+            duration: 6000,
+          });
         } else {
-          console.error('💥 Échecs détaillés:', failures);
-          toast.error(`Erreur: ${failures.length} coefficient(s) échoué(s). Voir la console pour les détails.`);
+          toast.error('Échec de la création', {
+            description: `Tous les coefficients ont échoué. Vérifiez les données et réessayez.`,
+            duration: 6000,
+          });
         }
       }
     } catch (error) {
       console.error('💥 Erreur globale:', error);
-      toast.error('Erreur lors de la sauvegarde: ' + error.message);
+      toast.error('Erreur lors de la sauvegarde', {
+        description: error.message || 'Une erreur inattendue s\'est produite',
+        duration: 6000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -363,14 +400,23 @@ export function CoefficientManagement() {
       });
 
       if (response.ok) {
-        toast.success('Coefficient supprimé');
+        toast.success('Coefficient supprimé avec succès', {
+          description: 'Le coefficient a été retiré de la base de données',
+          duration: 4000,
+        });
         loadCoefficients();
       } else {
-        toast.error('Erreur lors de la suppression');
+        toast.error('Erreur lors de la suppression', {
+          description: 'Impossible de supprimer le coefficient. Veuillez réessayer.',
+          duration: 6000,
+        });
       }
     } catch (error) {
       console.error('Erreur:', error);
-      toast.error('Erreur lors de la suppression');
+      toast.error('Erreur de connexion', {
+        description: 'Problème de communication avec le serveur',
+        duration: 6000,
+      });
     } finally {
       setIsLoading(false);
     }

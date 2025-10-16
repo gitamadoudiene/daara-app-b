@@ -351,7 +351,7 @@ export function GradesAssessment() {
       title: '',
       classId: '',
       subject: '',
-      type: 'controle',
+      type: 'devoir',
       date: new Date().toISOString().split('T')[0],
       semester: 1,
       academicYear: '2025-2026',
@@ -599,8 +599,8 @@ export function GradesAssessment() {
       
       if (gradesToSubmit.length === 0) {
         toast({
-          title: "Attention",
-          description: "Aucune note à soumettre.",
+          title: "⚠️ Aucune note à enregistrer",
+          description: "Veuillez saisir au moins une note ou marquer des absences.",
           variant: "default"
         });
         setIsSubmitting(false);
@@ -614,8 +614,8 @@ export function GradesAssessment() {
       
       if (invalidGrades.length > 0) {
         toast({
-          title: "Erreur de validation",
-          description: "Toutes les notes doivent être entre 0 et 20.",
+          title: "⚠️ Notes invalides",
+          description: `${invalidGrades.length} note(s) non conforme(s). Les notes doivent être entre 0 et 20.`,
           variant: "destructive"
         });
         setIsSubmitting(false);
@@ -645,8 +645,8 @@ export function GradesAssessment() {
         const absentCount = gradesToSubmit.filter(g => g.isAbsent).length;
         
         toast({
-          title: "Notes soumises",
-          description: `${gradedCount} note(s) et ${absentCount} absence(s) enregistrées avec succès.`,
+          title: "✅ Notes enregistrées avec succès",
+          description: `${gradedCount} note(s) et ${absentCount} absence(s) pour ${selectedAssessment.title}`,
         });
         
         // Mettre à jour la liste des évaluations
@@ -672,16 +672,16 @@ export function GradesAssessment() {
       } else {
         console.error('Erreur lors de la soumission des notes:', data.message);
         toast({
-          title: "Erreur",
-          description: data.message || "Une erreur s'est produite lors de la soumission des notes.",
+          title: "❌ Échec de l'enregistrement",
+          description: data.message || "Impossible d'enregistrer les notes. Vérifiez les données saisies.",
           variant: "destructive"
         });
       }
     } catch (error) {
       console.error('Erreur lors de la soumission des notes:', error);
       toast({
-        title: "Erreur",
-        description: "Une erreur s'est produite lors de la communication avec le serveur.",
+        title: "❌ Erreur de connexion",
+        description: "Problème de communication avec le serveur. Veuillez réessayer.",
         variant: "destructive"
       });
     } finally {
@@ -711,8 +711,8 @@ export function GradesAssessment() {
       
       if (data.success || response.ok) {
         toast({
-          title: "Évaluation supprimée",
-          description: "L'évaluation a été supprimée avec succès.",
+          title: "✅ Évaluation supprimée",
+          description: `${assessmentToDelete.title} a été supprimée définitivement`,
         });
         
         // Retirer l'évaluation de la liste
@@ -725,16 +725,16 @@ export function GradesAssessment() {
       } else {
         console.error('Erreur lors de la suppression:', data.message);
         toast({
-          title: "Erreur",
-          description: data.message || "Une erreur s'est produite lors de la suppression.",
+          title: "❌ Échec de la suppression",
+          description: data.message || "Impossible de supprimer l'évaluation. Veuillez réessayer.",
           variant: "destructive"
         });
       }
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
       toast({
-        title: "Erreur de connexion",
-        description: "Une erreur s'est produite lors de la communication avec le serveur.",
+        title: "❌ Erreur de connexion",
+        description: "Problème de communication avec le serveur. Veuillez réessayer.",
         variant: "destructive"
       });
     } finally {
@@ -801,9 +801,12 @@ export function GradesAssessment() {
       console.log('Response OK:', response.ok);
       
       if (data.success) {
+        const classData = classes.find(c => c._id === newAssessment.classId);
+        const className = classData?.name || selectedClass?.name || 'Classe inconnue';
+        
         toast({
-          title: "Évaluation créée",
-          description: "L'évaluation a été programmée avec succès.",
+          title: "✅ Évaluation créée avec succès",
+          description: `${newAssessment.title} - ${newAssessment.subject} pour ${className}`,
         });
         
         // Convertir la réponse au format attendu par l'interface
@@ -840,8 +843,8 @@ export function GradesAssessment() {
         console.error('Erreur lors de la création de l\'évaluation:', data.message);
         console.error('Données complètes de l\'erreur:', data);
         toast({
-          title: "Erreur",
-          description: data.message || "Une erreur s'est produite lors de la création de l'évaluation.",
+          title: "❌ Échec de la création",
+          description: data.message || "Impossible de créer l'évaluation. Vérifiez les données saisies.",
           variant: "destructive"
         });
       }
@@ -849,8 +852,8 @@ export function GradesAssessment() {
       console.error('Erreur lors de la création de l\'évaluation:', error);
       console.error('Détails de l\'erreur:', error);
       toast({
-        title: "Erreur de connexion",
-        description: "Une erreur s'est produite lors de la communication avec le serveur.",
+        title: "❌ Erreur de connexion",
+        description: "Problème de communication avec le serveur. Veuillez réessayer.",
         variant: "destructive"
       });
     } finally {
