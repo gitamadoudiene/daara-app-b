@@ -13,6 +13,8 @@ import { Plus, Edit, Trash2, Settings, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { CLASS_LEVELS, getClassLevelLabel } from '@/lib/classLevels';
 import { apiCall, getAuthToken } from '@/lib/api';
+import { useSchoolDefaults } from '@/hooks/useSchoolDefaults';
+import { SEMESTER_OPTIONS, ACADEMIC_YEAR_OPTIONS } from '@/lib/academicOptions';
 
 interface Subject {
   _id: string;
@@ -63,6 +65,9 @@ export function CoefficientManagement() {
     defaultSemester: 1,
     defaultAcademicYear: '2025-2026'
   });
+
+  // Hook pour gérer les paramètres par défaut en BD
+  const { saveSchoolDefaults } = useSchoolDefaults();
 
   useEffect(() => {
     loadCoefficients();
@@ -415,8 +420,11 @@ export function CoefficientManagement() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">1er Semestre</SelectItem>
-                  <SelectItem value="2">2ème Semestre</SelectItem>
+                  {SEMESTER_OPTIONS.map(option => (
+                    <SelectItem key={option.value} value={option.value.toString()}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -433,9 +441,11 @@ export function CoefficientManagement() {
                   <SelectValue placeholder="Sélectionner une année académique" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2025-2026">2025-2026</SelectItem>
-                  <SelectItem value="2026-2027">2026-2027</SelectItem>
-                  <SelectItem value="2027-2028">2027-2028</SelectItem>
+                  {ACADEMIC_YEAR_OPTIONS.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -473,6 +483,31 @@ export function CoefficientManagement() {
               }}
             >
               🧪 Créer Données Test
+            </Button>
+            <Button 
+              variant="default" 
+              onClick={async () => {
+                try {
+                  console.log('💾 Sauvegarde paramètres en BD...');
+                  const response = await saveSchoolDefaults(
+                    schoolSettings.defaultSemester, 
+                    schoolSettings.defaultAcademicYear
+                  );
+                  
+                  if (response.success) {
+                    toast.success('Paramètres sauvegardés en BD avec succès !');
+                    console.log('✅ Sauvegarde BD réussie:', response.data);
+                  } else {
+                    toast.error('Erreur lors de la sauvegarde en BD');
+                    console.error('❌ Erreur sauvegarde BD:', response.error);
+                  }
+                } catch (error) {
+                  toast.error('Erreur de connexion à la BD');
+                  console.error('❌ Erreur sauvegarde BD:', error);
+                }
+              }}
+            >
+              💾 Sauvegarder en BD
             </Button>
           </div>
         </CardContent>

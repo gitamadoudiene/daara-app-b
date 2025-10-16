@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EvaluationStats } from './EvaluationStats';
+import { SEMESTER_OPTIONS, ACADEMIC_YEAR_OPTIONS } from '@/lib/academicOptions';
 import {
   Table,
   TableBody,
@@ -114,21 +115,17 @@ export function GradesAssessment() {
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
   const [isFormValid, setIsFormValid] = useState<boolean>(false);
   
-  const [newAssessment, setNewAssessment] = useState<Partial<Assessment>>(() => {
-    // Initialiser avec des valeurs temporaires qui seront mises à jour par le hook
-    console.log('🎯 Initialisation newAssessment avec valeurs temporaires');
-    return {
-      title: '',
-      classId: '',
-      subject: '',
-      type: 'controle',
-      date: new Date().toISOString().split('T')[0],
-      semester: undefined, // Sera mis à jour par le hook
-      academicYear: undefined, // Sera mis à jour par le hook
-      description: '',
-      coefficient: 1,
-      maxScore: 20
-    };
+  const [newAssessment, setNewAssessment] = useState<Partial<Assessment>>({
+    title: '',
+    classId: '',
+    subject: '',
+    type: 'controle',
+    date: new Date().toISOString().split('T')[0],
+    semester: 1, // Valeur par défaut temporaire
+    academicYear: '2025-2026', // Valeur par défaut temporaire
+    description: '',
+    coefficient: 1,
+    maxScore: 20
   });
   const { toast } = useToast();
 
@@ -212,111 +209,19 @@ export function GradesAssessment() {
   
   // Initialiser les paramètres par défaut quand schoolSettings est chargé
   useEffect(() => {
-    console.log('🔍 Effect schoolSettings déclenché:', { 
-      isLoadingDefaults, 
-      schoolSettings,
-      currentNewAssessment: newAssessment 
-    });
-    
     if (!isLoadingDefaults && schoolSettings) {
-      console.log('🎯 CONDITIONS REMPLIES - Mise à jour des paramètres par défaut:', schoolSettings);
-      console.log('📋 Valeurs actuelles newAssessment avant mise à jour:', newAssessment);
-      
-      // Forcer la mise à jour même si les valeurs semblent identiques
-      setNewAssessment(prev => {
-        const updated = {
-          ...prev,
-          semester: schoolSettings.defaultSemester,
-          academicYear: schoolSettings.defaultAcademicYear
-        };
-        console.log('📋 MISE À JOUR APPLIQUÉE - Nouvelles valeurs newAssessment:', updated);
-        console.log('📋 Changements:', {
-          semestreAvant: prev.semester,
-          semestreAprès: updated.semester,
-          annéeAvant: prev.academicYear,
-          annéeAprès: updated.academicYear
-        });
-        return updated;
-      });
+      // Mettre à jour newAssessment avec les valeurs par défaut de l'école
+      setNewAssessment(prev => ({
+        ...prev,
+        semester: schoolSettings.defaultSemester,
+        academicYear: schoolSettings.defaultAcademicYear
+      }));
       
       // Mettre à jour les états globaux
       setCurrentSemester(schoolSettings.defaultSemester);
       setCurrentAcademicYear(schoolSettings.defaultAcademicYear);
-      console.log('✅ États globaux mis à jour:', { 
-        semestre: schoolSettings.defaultSemester, 
-        annee: schoolSettings.defaultAcademicYear 
-      });
-    } else {
-      console.log('⏳ Conditions non remplies:', {
-        isLoadingDefaults,
-        hasSchoolSettings: !!schoolSettings
-      });
     }
-  }, [isLoadingDefaults, schoolSettings]); // Enlever newAssessment de la dépendance
-
-  // Effect de sécurité pour forcer la mise à jour si jamais elle n'a pas eu lieu
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!isLoadingDefaults && schoolSettings && 
-          (newAssessment.semester !== schoolSettings.defaultSemester || 
-           newAssessment.academicYear !== schoolSettings.defaultAcademicYear)) {
-        console.log('🔧 FORCER MISE À JOUR - Les valeurs ne correspondent pas');
-        console.log('📊 Comparaison:', {
-          newAssessmentSemester: newAssessment.semester,
-          schoolSettingsSemester: schoolSettings.defaultSemester,
-          newAssessmentYear: newAssessment.academicYear,
-          schoolSettingsYear: schoolSettings.defaultAcademicYear
-        });
-        
-        setNewAssessment(prev => ({
-          ...prev,
-          semester: schoolSettings.defaultSemester,
-          academicYear: schoolSettings.defaultAcademicYear
-        }));
-      }
-    }, 1000); // Attendre 1 seconde après le rendu
-
-    return () => clearTimeout(timer);
-  }, [isLoadingDefaults, schoolSettings, newAssessment.semester, newAssessment.academicYear]);
-
-  // Surveiller directement les changements du localStorage
-  useEffect(() => {
-    console.log('👂 GradesAssessment - Surveillance localStorage');
-    
-    const checkLocalStorage = () => {
-      const currentSettings = localStorage.getItem('school-settings');
-      if (currentSettings) {
-        const parsed = JSON.parse(currentSettings);
-        
-        // Si les valeurs dans localStorage sont différentes de celles dans newAssessment
-        if (parsed.defaultSemester !== newAssessment.semester || 
-            parsed.defaultAcademicYear !== newAssessment.academicYear) {
-          
-          console.log('🔄 Différence détectée entre localStorage et newAssessment');
-          console.log('📊 localStorage:', parsed);
-          console.log('📊 newAssessment:', { 
-            semester: newAssessment.semester, 
-            academicYear: newAssessment.academicYear 
-          });
-          
-          // Appliquer immédiatement les valeurs du localStorage
-          setNewAssessment(prev => ({
-            ...prev,
-            semester: parsed.defaultSemester,
-            academicYear: parsed.defaultAcademicYear
-          }));
-        }
-      }
-    };
-
-    // Vérifier immédiatement
-    checkLocalStorage();
-
-    // Puis vérifier périodiquement
-    const intervalId = setInterval(checkLocalStorage, 1000);
-
-    return () => clearInterval(intervalId);
-  }, []); // Pas de dépendances pour éviter les loops infinis
+  }, [isLoadingDefaults, schoolSettings]);
 
   // Charger les évaluations de l'enseignant
   useEffect(() => {
@@ -1621,8 +1526,11 @@ export function GradesAssessment() {
                       <SelectValue placeholder="Sélectionner" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">Semestre 1</SelectItem>
-                      <SelectItem value="2">Semestre 2</SelectItem>
+                      {SEMESTER_OPTIONS.map(option => (
+                        <SelectItem key={option.value} value={option.value.toString()}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   {formErrors.semester && (
@@ -1643,8 +1551,11 @@ export function GradesAssessment() {
                       <SelectValue placeholder="Sélectionner" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="2025-2026">2025-2026</SelectItem>
-                      <SelectItem value="2024-2025">2024-2025</SelectItem>
+                      {ACADEMIC_YEAR_OPTIONS.map(option => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   {formErrors.academicYear && (

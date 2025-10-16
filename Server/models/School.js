@@ -12,7 +12,10 @@ const schoolSchema = new mongoose.Schema({
   createdYear: { type: String, required: true, default: '' },
   addedDate: { type: String, default: '' },
   status: { type: String, enum: ['Actif', 'Inactif', 'Suspendu'], default: 'Inactif' },
-  type: { type: String, enum: ['Public', 'Privé', 'Semi-public'], default: 'Public' }
+  type: { type: String, enum: ['Public', 'Privé', 'Semi-public'], default: 'Public' },
+  // Paramètres par défaut de l'école
+  defaultSemester: { type: Number, enum: [1, 2], default: 1 },
+  defaultAcademicYear: { type: String, default: '2025-2026' }
 });
 
 module.exports = mongoose.model('School', schoolSchema);

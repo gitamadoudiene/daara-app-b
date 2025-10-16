@@ -28,45 +28,59 @@ export function useSchoolDefaults() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Charger les paramètres par défaut de l'école depuis le localStorage
-  const loadSchoolSettings = () => {
+  // Charger les paramètres par défaut de l'école depuis l'API BD
+  const loadSchoolSettings = async () => {
     try {
-      console.log('🔍 Tentative de chargement des paramètres école...');
-      const savedSettings = localStorage.getItem('school-settings');
-      console.log('📋 Données localStorage school-settings:', savedSettings);
+      const response = await apiCall('/school/defaults/current');
       
-      // Aussi vérifier les paramètres individuels si school-settings n'existe pas
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          const settings = {
+            defaultSemester: data.data.defaultSemester || 1,
+            defaultAcademicYear: data.data.defaultAcademicYear || '2025-2026'
+          };
+          setSchoolSettings(settings);
+          return settings;
+        }
+      }
+      
+      // Fallback vers localStorage si l'API échoue
+      return loadSchoolSettingsFromLocalStorage();
+    } catch (error) {
+      // Fallback vers localStorage en cas d'erreur
+      return loadSchoolSettingsFromLocalStorage();
+    }
+  };
+
+  // Fallback localStorage (gardé pour compatibilité)
+  const loadSchoolSettingsFromLocalStorage = () => {
+    try {
+      const savedSettings = localStorage.getItem('school-settings');
       const savedSemester = localStorage.getItem('school-default-semester');
       const savedAcademicYear = localStorage.getItem('school-default-academic-year');
       
       if (savedSettings) {
         const settings = JSON.parse(savedSettings);
-        console.log('📋 Paramètres école parsés:', settings);
         setSchoolSettings(settings);
         return settings;
       } else if (savedSemester || savedAcademicYear) {
-        console.log('📋 Paramètres individuels trouvés:', { savedSemester, savedAcademicYear });
         const settings = {
-          defaultSemester: savedSemester ? (savedSemester === '2ème semestre' ? 2 : 1) : 2,
-          defaultAcademicYear: savedAcademicYear || '2024-2025'
+          defaultSemester: savedSemester ? (savedSemester === '2ème semestre' ? 2 : 1) : 1,
+          defaultAcademicYear: savedAcademicYear || '2025-2026'
         };
-        console.log('📋 Paramètres école construits:', settings);
         setSchoolSettings(settings);
         return settings;
       } else {
-        console.log('⚠️ Aucun paramètre école trouvé dans localStorage');
-        // Valeurs par défaut
-        const currentYear = new Date().getFullYear();
         const defaultSettings = {
-          defaultSemester: 2, // Défaut à 2ème semestre pour test
-          defaultAcademicYear: `${currentYear}-${currentYear + 1}`
+          defaultSemester: 1,
+          defaultAcademicYear: '2025-2026'
         };
-        console.log('📋 Paramètres école par défaut appliqués:', defaultSettings);
         setSchoolSettings(defaultSettings);
         return defaultSettings;
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des paramètres école:', error);
       const defaultSettings = {
         defaultSemester: 1,
         defaultAcademicYear: '2025-2026'
@@ -79,12 +93,10 @@ export function useSchoolDefaults() {
   // Charger les coefficients configurés
   const loadCoefficients = async () => {
     try {
-      console.log('🔍 Chargement des coefficients...');
       const response = await apiCall('/coefficients');
 
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 Coefficients reçus de l\'API:', data);
         
         // Extraire les coefficients du format API
         let coefficientsArray = [];
@@ -100,27 +112,20 @@ export function useSchoolDefaults() {
           coefficientsArray = data.coefficients;
         }
         
-        console.log('📊 Coefficients API traités:', coefficientsArray);
-        
         // Si l'API ne retourne pas de coefficients, essayer le localStorage comme fallback
         if (coefficientsArray.length === 0) {
-          console.log('🔄 API vide, fallback vers localStorage...');
           const localCoefficients = loadCoefficientsFromLocalStorage();
           coefficientsArray = localCoefficients;
         }
         
         setCoefficients(coefficientsArray);
       } else {
-        console.error('Erreur API coefficients:', response.status);
         // En cas d'erreur API, utiliser localStorage
-        console.log('🔄 Erreur API, fallback vers localStorage...');
         const localCoefficients = loadCoefficientsFromLocalStorage();
         setCoefficients(localCoefficients);
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des coefficients:', error);
       // En cas d'erreur de connexion, utiliser localStorage
-      console.log('🔄 Erreur connexion, fallback vers localStorage...');
       const localCoefficients = loadCoefficientsFromLocalStorage();
       setCoefficients(localCoefficients);
     }
@@ -129,229 +134,159 @@ export function useSchoolDefaults() {
   // Charger les coefficients depuis le localStorage
   const loadCoefficientsFromLocalStorage = (): SubjectCoefficient[] => {
     try {
-      console.log('🔍 Chargement coefficients depuis localStorage...');
       const savedCoefficients = localStorage.getItem('school-coefficients');
       
       if (savedCoefficients) {
         const localCoeffs = JSON.parse(savedCoefficients);
-        console.log('📊 Coefficients localStorage bruts:', localCoeffs);
         
-        // Transformer le format localStorage vers le format API
-        const transformedCoeffs = localCoeffs.map((coeff: any, index: number) => ({
-          _id: `local-${index}`,
-          subjectId: {
-            _id: coeff.subjectName.toLowerCase(),
-            name: coeff.subjectName,
-            code: coeff.subjectName.toLowerCase()
-          },
-          classLevel: coeff.className,
+        // Transformer les coefficients dans le bon format
+        const transformedCoeffs = localCoeffs.map((coeff: any) => ({
+          _id: coeff._id || `local-${coeff.subjectId}-${coeff.classLevel}`,
+          subjectId: coeff.subjectId,
+          classLevel: coeff.classLevel,
           coefficient: coeff.coefficient,
-          schoolId: 'local-school',
+          schoolId: coeff.schoolId || 'local',
           academicYear: coeff.academicYear
         }));
         
-        console.log('📊 Coefficients localStorage transformés:', transformedCoeffs);
         return transformedCoeffs;
       }
       
-      console.log('⚠️ Aucun coefficient dans localStorage');
       return [];
     } catch (error) {
-      console.error('Erreur chargement coefficients localStorage:', error);
       return [];
     }
   };
 
-  // Fonction pour obtenir le coefficient par défaut pour une matière et classe
+  // Mapping complet des matières
+  const SUBJECT_MAPPINGS = {
+    'Mathématiques': ['Maths', 'Mathématiques', 'Mathematics', 'Math'],
+    'Français': ['Français', 'French', 'Littérature'],
+    'Anglais': ['Anglais', 'English', 'Ang'],
+    'Histoire-Géographie': ['Histoire-Géographie', 'Histoire', 'Géographie', 'History', 'Geography', 'HG', 'Hist-Géo'],
+    'Sciences de la Vie et de la Terre': ['Sciences de la Vie et de la Terre', 'SVT', 'Sciences Naturelles', 'Biology'],
+    'Physique-Chimie': ['Physique-Chimie', 'Physique', 'Chimie', 'Physics', 'Chemistry', 'PC'],
+    'Éducation Physique et Sportive': ['Éducation Physique et Sportive', 'EPS', 'Sport', 'Physical Education'],
+    'Arts plastiques': ['Arts plastiques', 'Arts', 'Art', 'Dessin'],
+    'Musique': ['Musique', 'Music', 'Éducation musicale'],
+    'Technologie': ['Technologie', 'Technology', 'Tech'],
+    'Informatique': ['Informatique', 'Computer Science', 'ICT', 'TIC'],
+    'Philosophie': ['Philosophie', 'Philosophy', 'Philo'],
+    'Sciences Économiques et Sociales': ['Sciences Économiques et Sociales', 'SES', 'Economics'],
+    'Allemand': ['Allemand', 'German', 'All'],
+    'Espagnol': ['Espagnol', 'Spanish', 'Esp'],
+    'Italien': ['Italien', 'Italian', 'Ita'],
+    'Arabe': ['Arabe', 'Arabic', 'العربية'],
+    'Éducation civique': ['Éducation civique', 'Civics', 'Instruction civique'],
+    'Latin': ['Latin'],
+    'Grec': ['Grec', 'Greek'],
+    'Sciences': ['Sciences', 'Science', 'Sciences générales'],
+    'Littérature': ['Littérature', 'Literature', 'Litt'],
+    'Géologie': ['Géologie', 'Geology'],
+    'Biologie': ['Biologie', 'Biology', 'Bio'],
+    'Astronomie': ['Astronomie', 'Astronomy'],
+    'Psychologie': ['Psychologie', 'Psychology'],
+    'Sociologie': ['Sociologie', 'Sociology']
+  };
+
   const getDefaultCoefficient = (subjectId: string, classLevel: string): number => {
-    console.log('🔍 Recherche coefficient pour:', { subjectId, classLevel });
-    console.log('📊 Coefficients disponibles:', coefficients);
-    
-    // Mapping des noms de matières COMPLET (toutes les 26 matières de la BD)
-    const subjectMappings: {[key: string]: string[]} = {
-      'Philosophie': ["Philosophie", "philosophie", "PHILO", "Philo"],
-      'Mathematique': ["Mathematique", "mathematique", "MATH", "Mathématiques", "Math", "Maths", "mathematics"],
-      'Français': ["Français", "français", "FR", "French", "Francais"],
-      'Physique-Chimie': ["Physique-Chimie", "physique-chimie", "Physique-chimie", "PC", "Physique", "Chimie"],
-      'Sciences de la Vie et de la Terre': ["Sciences de la Vie et de la Terre", "sciences de la vie et de la terre", "Sciences de la vie et de la terre", "SVT", "Biologie"],
-      'Histoire-Géographie': ["Histoire-Géographie", "histoire-géographie", "Histoire-géographie", "HG", "Histoire", "Géographie"],
-      'Anglais': ["Anglais", "anglais", "ENG", "English"],
-      'Espagnol': ["Espagnol", "espagnol", "ESP", "Spanish"],
-      'Allemand': ["Allemand", "allemand", "ALL", "German"],
-      'Arabe': ["Arabe", "arabe", "ARB", "Arabic"],
-      'Langues Nationales': ["Langues Nationales", "langues nationales", "Langues nationales", "LN"],
-      'Éducation Civique et Morale': ["Éducation Civique et Morale", "éducation civique et morale", "Éducation civique et morale", "ECM", "Education Civique"],
-      'Éducation religieuse': ["Éducation religieuse", "éducation religieuse", "ER", "Education Religieuse"],
-      'Technologie': ["Technologie", "technologie", "TEC", "Technology"],
-      'Informatique': ["Informatique", "informatique", "INF", "IT", "Computer Science", "Info"],
-      'Éducation Artistique': ["Éducation Artistique", "éducation artistique", "Éducation artistique", "EA", "Arts"],
-      'Éducation Physique et Sportive': ["Éducation Physique et Sportive", "éducation physique et sportive", "Éducation physique et sportive", "EPS", "Sport"],
-      'Economie': ["Economie", "economie", "ECO", "Economics", "Économie"],
-      'Comptabilité': ["Comptabilité", "comptabilité", "COMPTA", "Accounting"],
-      'Gestion': ["Gestion", "gestion", "GES", "Management"],
-      'Droit': ["Droit", "droit", "DROIT", "Law"],
-      'Sciences Industrielles': ["Sciences Industrielles", "sciences industrielles", "Sciences industrielles", "SI"],
-      'Économie Familiale et Sociale': ["Économie Familiale et Sociale", "économie familiale et sociale", "Économie familiale et sociale", "ECOFAM"],
-      'Programmation web': ["Programmation web", "programmation web", "PROG", "Web Programming", "Programming"],
-      'Russe': ["Russe", "russe", "RUSSE", "Russian"],
-      'Intelligence Artificiel': ["Intelligence Artificiel", "intelligence artificiel", "Intelligence artificiel", "IA", "AI", "Intelligence Artificielle"]
-    };
-    
-    // Mapping des niveaux de classe COMPLET (tous les 7 niveaux de la BD)
-    const classLevelMappings: {[key: string]: string[]} = {
-      '3eme': ["3eme", "3ème", "Troisième", "3e", "3"],
-      '4eme': ["4eme", "4ème", "Quatrième", "4e", "4"],
-      '5eme': ["5eme", "5ème", "Cinquième", "5e", "5"],
-      '6eme': ["6eme", "6ème", "Sixième", "6e", "6"],
-      'Terminal_L': ["Terminal_L", "Terminal L", "TerminalL", "Terminale L", "TL", "Term L"],
-      'Terminal_S': ["Terminal_S", "Terminal S", "TerminalS", "Terminale S", "TS", "Term S"],
-      'Terminale_S2': ["Terminale_S2", "Terminale S2", "TerminaleS2", "Term", "T", "TS2", "S2", "Section S2", "Terminale_S2"]
-    };
-    
-    // Fonction pour vérifier si deux noms de matières correspondent
-    const subjectsMatch = (coeffSubject: string, targetSubject: string): boolean => {
-      if (coeffSubject === targetSubject) return true;
-      
-      // Normaliser les comparaisons (ignorer casse et espaces)
-      const normalizeSubject = (s: string) => s.toLowerCase().trim();
-      if (normalizeSubject(coeffSubject) === normalizeSubject(targetSubject)) return true;
-      
-      // Vérifier les mappings dans les deux sens
-      for (const [mainSubject, aliases] of Object.entries(subjectMappings)) {
-        const normalizedAliases = aliases.map(normalizeSubject);
-        const normalizedMain = normalizeSubject(mainSubject);
-        const normalizedCoeff = normalizeSubject(coeffSubject);
-        const normalizedTarget = normalizeSubject(targetSubject);
-        
-        // Si coeffSubject correspond au nom principal ou à un alias
-        // ET targetSubject correspond aussi au nom principal ou à un alias
-        const coeffMatchesGroup = normalizedCoeff === normalizedMain || normalizedAliases.includes(normalizedCoeff);
-        const targetMatchesGroup = normalizedTarget === normalizedMain || normalizedAliases.includes(normalizedTarget);
-        
-        if (coeffMatchesGroup && targetMatchesGroup) {
-          console.log(`✅ Match trouvé via mapping: ${coeffSubject} ↔ ${targetSubject} (groupe: ${mainSubject})`);
-          return true;
-        }
-      }
-      return false;
-    };
-    
-    // Fonction pour vérifier si deux niveaux correspondent
-    const classLevelsMatch = (coeffClassLevel: string, targetLevel: string): boolean => {
-      if (coeffClassLevel === targetLevel) return true;
-      
-      // Normaliser les comparaisons
-      const normalizeClass = (s: string) => s.toLowerCase().trim();
-      if (normalizeClass(coeffClassLevel) === normalizeClass(targetLevel)) return true;
-      
-      // Vérifier les mappings
-      for (const [mainLevel, aliases] of Object.entries(classLevelMappings)) {
-        const normalizedAliases = aliases.map(normalizeClass);
-        if (normalizedAliases.includes(normalizeClass(coeffClassLevel)) && 
-            normalizedAliases.includes(normalizeClass(targetLevel))) {
-          return true;
-        }
-      }
-      return false;
-    };
-    
-    // Chercher le coefficient
-    const coefficient = coefficients.find(c => {
-      const coeffSubjectId = typeof c.subjectId === 'object' ? c.subjectId._id : c.subjectId;
-      const coeffSubjectName = typeof c.subjectId === 'object' ? c.subjectId.name : coeffSubjectId;
-      
-      const subjectMatch = subjectsMatch(coeffSubjectId, subjectId) || 
-                          subjectsMatch(coeffSubjectName, subjectId);
+    // Recherche directe par ID
+    const directMatch = coefficients.find(c => {
+      const coeffSubjectId = typeof c.subjectId === 'string' ? c.subjectId : c.subjectId._id;
       const classMatch = classLevelsMatch(c.classLevel, classLevel);
-      
-      console.log('📋 Comparaison coefficient:', { 
-        coeffSubjectId, 
-        coeffSubjectName,
-        targetSubjectId: subjectId, 
-        coeffClassLevel: c.classLevel, 
-        targetClassLevel: classLevel, 
-        subjectMatch,
-        classMatch,
-        coefficientValue: c.coefficient,
-        match: subjectMatch && classMatch
-      });
-      
-      return subjectMatch && classMatch;
+      return coeffSubjectId === subjectId && classMatch;
     });
-    
-    const result = coefficient ? coefficient.coefficient : 1;
-    console.log('📋 Coefficient final trouvé:', result, 'pour', subjectId, 'en', classLevel);
+
+    if (directMatch) {
+      return directMatch.coefficient;
+    }
+
+    // Recherche par nom/mapping des matières
+    for (const [mainSubject, aliases] of Object.entries(SUBJECT_MAPPINGS)) {
+      if (aliases.some(alias => alias.toLowerCase() === subjectId.toLowerCase())) {
+        const coefficient = coefficients.find(c => {
+          const coeffSubject = typeof c.subjectId === 'string' ? c.subjectId : c.subjectId.name;
+          const targetSubject = aliases.find(alias => 
+            alias.toLowerCase() === coeffSubject.toLowerCase()
+          );
+          const classMatch = classLevelsMatch(c.classLevel, classLevel);
+          
+          if (targetSubject && classMatch) {
+            return true;
+          }
+          return false;
+        });
+
+        if (coefficient) {
+          return coefficient.coefficient;
+        }
+      }
+    }
+
+    // Coefficient par défaut basé sur le niveau de classe
+    const defaultCoefficients: {[key: string]: number} = {
+      'CP': 2, 'CE1': 2, 'CE2': 2, 'CM1': 3, 'CM2': 3,
+      '6eme': 4, '5eme': 4, '4eme': 5, '3eme': 5,
+      'Seconde': 6, 'Premiere': 7, 'Terminale': 8,
+      'Terminale_S1': 8, 'Terminale_S2': 8, 'Terminale_L': 8
+    };
+
+    const result = defaultCoefficients[classLevel] || 1;
     return result;
   };
 
-  // Fonction pour obtenir le niveau de classe à partir de l'ID de classe
-  const getClassLevel = (classes: any[], classId: string): string => {
-    const classObj = classes.find(c => c._id === classId);
-    return classObj ? classObj.level : '';
+  // Fonction pour comparer les niveaux de classe
+  const classLevelsMatch = (coeff_level: string, target_level: string): boolean => {
+    if (coeff_level === target_level) return true;
+    
+    const levelMappings: {[key: string]: string[]} = {
+      'Terminale': ['Terminale', 'Terminale_S1', 'Terminale_S2', 'Terminale_L'],
+      'Terminale_S1': ['Terminale', 'Terminale_S1'],
+      'Terminale_S2': ['Terminale', 'Terminale_S2'],
+      'Premiere': ['Premiere', 'Première'],
+      'Seconde': ['Seconde', '2nde'],
+      '3eme': ['3eme', '3ème', 'Troisième'],
+      '4eme': ['4eme', '4ème', 'Quatrième'],
+      '5eme': ['5eme', '5ème', 'Cinquième'],
+      '6eme': ['6eme', '6ème', 'Sixième']
+    };
+
+    for (const [key, variants] of Object.entries(levelMappings)) {
+      if (variants.includes(coeff_level) && variants.includes(target_level)) {
+        return true;
+      }
+    }
+    
+    return false;
   };
 
-  // Initialiser les données
+  const getClassLevel = (classId: string): string => {
+    // Logique simple de mapping de classe vers niveau
+    const classLevelMap: {[key: string]: string} = {
+      'CP': 'CP', 'CE1': 'CE1', 'CE2': 'CE2', 'CM1': 'CM1', 'CM2': 'CM2',
+      '6eme': '6eme', '5eme': '5eme', '4eme': '4eme', '3eme': '3eme',
+      'Seconde': 'Seconde', 'Premiere': 'Premiere', 'Terminale': 'Terminale'
+    };
+    
+    return classLevelMap[classId] || 'Seconde';
+  };
+
+  // Initialisation et chargement des données
   useEffect(() => {
-    console.log('🚀 useSchoolDefaults - Initialisation du hook');
     const initializeDefaults = async () => {
-      console.log('⏳ useSchoolDefaults - Début du chargement');
       setIsLoading(true);
       try {
-        console.log('📋 useSchoolDefaults - Chargement des paramètres école');
-        loadSchoolSettings();
-        console.log('📊 useSchoolDefaults - Chargement des coefficients');
+        await loadSchoolSettings();
         await loadCoefficients();
-        console.log('✅ useSchoolDefaults - Chargement terminé avec succès');
       } catch (error) {
-        console.error('❌ useSchoolDefaults - Erreur lors de l\'initialisation:', error);
+        console.error('Erreur lors de l\'initialisation:', error);
       } finally {
         setIsLoading(false);
-        console.log('🏁 useSchoolDefaults - Fin du chargement, isLoading = false');
       }
     };
 
     initializeDefaults();
-  }, [refreshTrigger]); // Dépendance sur refreshTrigger au lieu d'un tableau vide
-
-  // Écouter les changements du localStorage
-  useEffect(() => {
-    console.log('👂 useSchoolDefaults - Écoute des changements localStorage');
-    
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'school-settings') {
-        console.log('🔄 localStorage school-settings a changé, rechargement...');
-        loadSchoolSettings();
-      }
-    };
-
-    // Écouter les changements du localStorage (fonctionne entre onglets)
-    window.addEventListener('storage', handleStorageChange);
-
-    // Écouter les changements manuels (même onglet)
-    const intervalId = setInterval(() => {
-      const currentSettings = localStorage.getItem('school-settings');
-      const currentParsed = currentSettings ? JSON.parse(currentSettings) : null;
-      
-      if (currentParsed && 
-          (currentParsed.defaultSemester !== schoolSettings.defaultSemester ||
-           currentParsed.defaultAcademicYear !== schoolSettings.defaultAcademicYear)) {
-        console.log('🔄 Détection changement localStorage par polling, rechargement...');
-        loadSchoolSettings();
-      }
-    }, 2000); // Vérifier toutes les 2 secondes
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(intervalId);
-    };
-  }, [schoolSettings.defaultSemester, schoolSettings.defaultAcademicYear]);
-
-  // Log final pour voir les valeurs retournées
-  console.log('🔄 useSchoolDefaults - Valeurs actuelles retournées:', {
-    schoolSettings,
-    coefficientsCount: coefficients.length,
-    isLoading
-  });
+  }, [refreshTrigger]);
 
   return {
     schoolSettings,
@@ -361,11 +296,37 @@ export function useSchoolDefaults() {
     getClassLevel,
     loadSchoolSettings,
     loadCoefficients,
+    // Fonction pour sauvegarder les paramètres par défaut en BD
+    saveSchoolDefaults: async (defaultSemester: number, defaultAcademicYear: string) => {
+      try {
+        const response = await apiCall('/school/defaults/current', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ defaultSemester, defaultAcademicYear })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Mettre à jour l'état local
+          setSchoolSettings({
+            defaultSemester: data.data.defaultSemester,
+            defaultAcademicYear: data.data.defaultAcademicYear
+          });
+          
+          return { success: true, data: data.data };
+        } else {
+          return { success: false, error: 'Erreur de sauvegarde' };
+        }
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    },
     // Fonction pour forcer le rechargement
     refreshSettings: () => {
-      console.log('🔄 Refresh manuel des paramètres');
-      loadSchoolSettings();
-      loadCoefficients();
+      setRefreshTrigger(prev => prev + 1);
     }
   };
 }
