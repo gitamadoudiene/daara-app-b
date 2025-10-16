@@ -160,8 +160,8 @@ export function useSchoolDefaults() {
 
   // Mapping complet des matières
   const SUBJECT_MAPPINGS = {
-    'Mathématiques': ['Maths', 'Mathématiques', 'Mathematics', 'Math'],
-    'Français': ['Français', 'French', 'Littérature'],
+    'Mathématiques': ['Maths', 'Mathématiques', 'Mathematique', 'Mathematics', 'Math'],
+    'Français': ['Français', 'Francais', 'French', 'Littérature'],
     'Anglais': ['Anglais', 'English', 'Ang'],
     'Histoire-Géographie': ['Histoire-Géographie', 'Histoire', 'Géographie', 'History', 'Geography', 'HG', 'Hist-Géo'],
     'Sciences de la Vie et de la Terre': ['Sciences de la Vie et de la Terre', 'SVT', 'Sciences Naturelles', 'Biology'],
@@ -190,6 +190,8 @@ export function useSchoolDefaults() {
   };
 
   const getDefaultCoefficient = (subjectId: string, classLevel: string): number => {
+    console.log('🔍 getDefaultCoefficient appelé avec:', { subjectId, classLevel });
+    
     // Recherche directe par ID
     const directMatch = coefficients.find(c => {
       const coeffSubjectId = typeof c.subjectId === 'string' ? c.subjectId : c.subjectId._id;
@@ -198,10 +200,24 @@ export function useSchoolDefaults() {
     });
 
     if (directMatch) {
+      console.log('✅ Coefficient trouvé par ID:', directMatch.coefficient);
       return directMatch.coefficient;
     }
 
-    // Recherche par nom/mapping des matières
+    // Recherche directe par nom de matière
+    const nameMatch = coefficients.find(c => {
+      const coeffSubject = typeof c.subjectId === 'string' ? c.subjectId : c.subjectId.name;
+      const classMatch = classLevelsMatch(c.classLevel, classLevel);
+      const nameMatches = coeffSubject && coeffSubject.toLowerCase() === subjectId.toLowerCase();
+      return nameMatches && classMatch;
+    });
+
+    if (nameMatch) {
+      console.log('✅ Coefficient trouvé par nom:', nameMatch.coefficient);
+      return nameMatch.coefficient;
+    }
+
+    // Recherche par mapping des matières
     for (const [mainSubject, aliases] of Object.entries(SUBJECT_MAPPINGS)) {
       if (aliases.some(alias => alias.toLowerCase() === subjectId.toLowerCase())) {
         const coefficient = coefficients.find(c => {
@@ -210,18 +226,17 @@ export function useSchoolDefaults() {
             alias.toLowerCase() === coeffSubject.toLowerCase()
           );
           const classMatch = classLevelsMatch(c.classLevel, classLevel);
-          
-          if (targetSubject && classMatch) {
-            return true;
-          }
-          return false;
+          return targetSubject && classMatch;
         });
 
         if (coefficient) {
+          console.log('✅ Coefficient trouvé par mapping:', coefficient.coefficient);
           return coefficient.coefficient;
         }
       }
     }
+
+    console.log('⚠️ Aucun coefficient configuré, utilisation du défaut');
 
     // Coefficient par défaut basé sur le niveau de classe
     const defaultCoefficients: {[key: string]: number} = {

@@ -250,17 +250,19 @@ export function CoefficientManagement() {
       
       // Si on modifie un coefficient existant, on garde l'ancienne logique
       if (editingCoefficient) {
-        const url = '/coefficients'; // Utiliser la même route que pour la création
+        const url = '/coefficients';
         const method = 'PUT';
         
         const singleData = {
           subjectId: formData.subjectId,
-          classLevel: formData.classLevels[0], // Pour l'édition, on prend le premier niveau
+          classLevel: formData.classLevels[0],
           coefficient: formData.coefficient,
-          academicYear: schoolSettings.defaultAcademicYear
+          // Utiliser l'année académique du coefficient existant, pas la valeur par défaut actuelle
+          academicYear: editingCoefficient.academicYear || schoolSettings.defaultAcademicYear
         };
         
         console.log('📤 Données envoyées au serveur (modification):', singleData);
+        console.log('🔍 Coefficient existant:', editingCoefficient);
         
         const response = await apiCall(url, {
           method,

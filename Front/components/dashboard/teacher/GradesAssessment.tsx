@@ -449,8 +449,9 @@ export function GradesAssessment() {
         return;
       }
       
-      // Utiliser notre nouveau service pour récupérer le coefficient
-      console.log('🔍 Appel getSchoolDefaultCoefficient avec:', { subject, classLevel: classData.level });
+      // CORRECTION: subject est un nom de matière, pas un subjectId
+      // getSchoolDefaultCoefficient attend (subjectId, classLevel) mais le hook gère aussi les noms de matières
+      console.log('🔍 Appel getSchoolDefaultCoefficient avec subject name:', { subject, classLevel: classData.level });
       const coefficient = getSchoolDefaultCoefficient(subject, classData.level);
       console.log('🔍 Coefficient par défaut récupéré:', { 
         subject, 
