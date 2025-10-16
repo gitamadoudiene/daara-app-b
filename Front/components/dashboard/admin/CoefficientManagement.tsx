@@ -217,7 +217,10 @@ export function CoefficientManagement() {
 
   const saveSchoolSettings = () => {
     try {
+      console.log('💾 Sauvegarde des paramètres:', schoolSettings);
       localStorage.setItem('school-settings', JSON.stringify(schoolSettings));
+      console.log('✅ Paramètres sauvegardés dans localStorage');
+      console.log('🔍 Vérification localStorage:', localStorage.getItem('school-settings'));
       toast.success('Paramètres de l\'école sauvegardés');
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
@@ -438,9 +441,40 @@ export function CoefficientManagement() {
             </div>
           </div>
           
-          <Button onClick={saveSchoolSettings} className="mt-4">
-            Sauvegarder les paramètres
-          </Button>
+          <div className="flex gap-4 mt-4">
+            <Button onClick={saveSchoolSettings}>
+              Sauvegarder les paramètres
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                console.log('🔍 Debug Admin - schoolSettings:', schoolSettings);
+                console.log('🔍 Debug Admin - localStorage:', localStorage.getItem('school-settings'));
+                const currentLS = localStorage.getItem('school-settings');
+                if (currentLS) {
+                  console.log('🔍 Debug Admin - localStorage parsé:', JSON.parse(currentLS));
+                }
+              }}
+            >
+              🔍 Debug Paramètres
+            </Button>
+            <Button 
+              variant="secondary" 
+              onClick={() => {
+                console.log('🧪 Création de données test...');
+                const testSettings = {
+                  defaultSemester: 2,
+                  defaultAcademicYear: '2025-2026'
+                };
+                setSchoolSettings(testSettings);
+                localStorage.setItem('school-settings', JSON.stringify(testSettings));
+                console.log('✅ Données test créées:', testSettings);
+                toast.success('Données test créées (Semestre 2, 2025-2026)');
+              }}
+            >
+              🧪 Créer Données Test
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

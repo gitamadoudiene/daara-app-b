@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Search, Download, Upload, Filter, AlertCircle, CheckCircle, Trash2, BarChart3 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useSchoolDefaults } from '@/hooks/useSchoolDefaults';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -100,21 +101,34 @@ export function GradesAssessment() {
   const [currentSemester, setCurrentSemester] = useState<number>(1);
   const [currentAcademicYear, setCurrentAcademicYear] = useState<string>('2025-2026');
   
+  // Hook pour récupérer les paramètres par défaut de l'école
+  const { 
+    schoolSettings, 
+    getDefaultCoefficient: getSchoolDefaultCoefficient, 
+    getClassLevel, 
+    isLoading: isLoadingDefaults,
+    refreshSettings
+  } = useSchoolDefaults();
+  
   // États pour la validation du formulaire
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
   const [isFormValid, setIsFormValid] = useState<boolean>(false);
   
-  const [newAssessment, setNewAssessment] = useState<Partial<Assessment>>({
-    title: '',
-    classId: '',
-    subject: '',
-    type: 'controle',
-    date: new Date().toISOString().split('T')[0],
-    semester: 1,
-    academicYear: '2025-2026',
-    description: '',
-    coefficient: 1,
-    maxScore: 20
+  const [newAssessment, setNewAssessment] = useState<Partial<Assessment>>(() => {
+    // Initialiser avec des valeurs temporaires qui seront mises à jour par le hook
+    console.log('🎯 Initialisation newAssessment avec valeurs temporaires');
+    return {
+      title: '',
+      classId: '',
+      subject: '',
+      type: 'controle',
+      date: new Date().toISOString().split('T')[0],
+      semester: undefined, // Sera mis à jour par le hook
+      academicYear: undefined, // Sera mis à jour par le hook
+      description: '',
+      coefficient: 1,
+      maxScore: 20
+    };
   });
   const { toast } = useToast();
 
@@ -195,6 +209,114 @@ export function GradesAssessment() {
 
     fetchTeacherSubjects();
   }, []);
+  
+  // Initialiser les paramètres par défaut quand schoolSettings est chargé
+  useEffect(() => {
+    console.log('🔍 Effect schoolSettings déclenché:', { 
+      isLoadingDefaults, 
+      schoolSettings,
+      currentNewAssessment: newAssessment 
+    });
+    
+    if (!isLoadingDefaults && schoolSettings) {
+      console.log('🎯 CONDITIONS REMPLIES - Mise à jour des paramètres par défaut:', schoolSettings);
+      console.log('📋 Valeurs actuelles newAssessment avant mise à jour:', newAssessment);
+      
+      // Forcer la mise à jour même si les valeurs semblent identiques
+      setNewAssessment(prev => {
+        const updated = {
+          ...prev,
+          semester: schoolSettings.defaultSemester,
+          academicYear: schoolSettings.defaultAcademicYear
+        };
+        console.log('📋 MISE À JOUR APPLIQUÉE - Nouvelles valeurs newAssessment:', updated);
+        console.log('📋 Changements:', {
+          semestreAvant: prev.semester,
+          semestreAprès: updated.semester,
+          annéeAvant: prev.academicYear,
+          annéeAprès: updated.academicYear
+        });
+        return updated;
+      });
+      
+      // Mettre à jour les états globaux
+      setCurrentSemester(schoolSettings.defaultSemester);
+      setCurrentAcademicYear(schoolSettings.defaultAcademicYear);
+      console.log('✅ États globaux mis à jour:', { 
+        semestre: schoolSettings.defaultSemester, 
+        annee: schoolSettings.defaultAcademicYear 
+      });
+    } else {
+      console.log('⏳ Conditions non remplies:', {
+        isLoadingDefaults,
+        hasSchoolSettings: !!schoolSettings
+      });
+    }
+  }, [isLoadingDefaults, schoolSettings]); // Enlever newAssessment de la dépendance
+
+  // Effect de sécurité pour forcer la mise à jour si jamais elle n'a pas eu lieu
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isLoadingDefaults && schoolSettings && 
+          (newAssessment.semester !== schoolSettings.defaultSemester || 
+           newAssessment.academicYear !== schoolSettings.defaultAcademicYear)) {
+        console.log('🔧 FORCER MISE À JOUR - Les valeurs ne correspondent pas');
+        console.log('📊 Comparaison:', {
+          newAssessmentSemester: newAssessment.semester,
+          schoolSettingsSemester: schoolSettings.defaultSemester,
+          newAssessmentYear: newAssessment.academicYear,
+          schoolSettingsYear: schoolSettings.defaultAcademicYear
+        });
+        
+        setNewAssessment(prev => ({
+          ...prev,
+          semester: schoolSettings.defaultSemester,
+          academicYear: schoolSettings.defaultAcademicYear
+        }));
+      }
+    }, 1000); // Attendre 1 seconde après le rendu
+
+    return () => clearTimeout(timer);
+  }, [isLoadingDefaults, schoolSettings, newAssessment.semester, newAssessment.academicYear]);
+
+  // Surveiller directement les changements du localStorage
+  useEffect(() => {
+    console.log('👂 GradesAssessment - Surveillance localStorage');
+    
+    const checkLocalStorage = () => {
+      const currentSettings = localStorage.getItem('school-settings');
+      if (currentSettings) {
+        const parsed = JSON.parse(currentSettings);
+        
+        // Si les valeurs dans localStorage sont différentes de celles dans newAssessment
+        if (parsed.defaultSemester !== newAssessment.semester || 
+            parsed.defaultAcademicYear !== newAssessment.academicYear) {
+          
+          console.log('🔄 Différence détectée entre localStorage et newAssessment');
+          console.log('📊 localStorage:', parsed);
+          console.log('📊 newAssessment:', { 
+            semester: newAssessment.semester, 
+            academicYear: newAssessment.academicYear 
+          });
+          
+          // Appliquer immédiatement les valeurs du localStorage
+          setNewAssessment(prev => ({
+            ...prev,
+            semester: parsed.defaultSemester,
+            academicYear: parsed.defaultAcademicYear
+          }));
+        }
+      }
+    };
+
+    // Vérifier immédiatement
+    checkLocalStorage();
+
+    // Puis vérifier périodiquement
+    const intervalId = setInterval(checkLocalStorage, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []); // Pas de dépendances pour éviter les loops infinis
 
   // Charger les évaluations de l'enseignant
   useEffect(() => {
@@ -409,23 +531,35 @@ export function GradesAssessment() {
   // Récupérer le coefficient par défaut basé sur le niveau de classe et la matière
   const getDefaultCoefficient = async (classId: string, subject: string) => {
     try {
-      if (!classId || !subject) return;
+      console.log('🎯 getDefaultCoefficient appelé avec:', { classId, subject });
+      if (!classId || !subject) {
+        console.log('⚠️ classId ou subject manquant');
+        return;
+      }
       
       const classData = classes.find(c => c._id === classId);
-      if (!classData) return;
+      console.log('📋 Classe trouvée:', classData);
+      if (!classData) {
+        console.log('❌ Aucune classe trouvée pour l\'ID:', classId);
+        return;
+      }
       
-      const response = await fetch(`/api/coefficients?classLevel=${classData.level}&subject=${subject}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
-        }
+      // Utiliser notre nouveau service pour récupérer le coefficient
+      console.log('🔍 Appel getSchoolDefaultCoefficient avec:', { subject, classLevel: classData.level });
+      const coefficient = getSchoolDefaultCoefficient(subject, classData.level);
+      console.log('🔍 Coefficient par défaut récupéré:', { 
+        subject, 
+        classLevel: classData.level, 
+        coefficient,
+        classData: classData
       });
       
-      if (response.ok) {
-        const coefficients = await response.json();
-        if (coefficients.length > 0) {
-          const coefficient = coefficients[0].coefficient;
-          setNewAssessment(prev => ({ ...prev, coefficient }));
-        }
+      if (coefficient > 1) { // Seulement si on a trouvé un coefficient configuré
+        setNewAssessment(prev => {
+          const updated = { ...prev, coefficient };
+          console.log('✅ Coefficient mis à jour dans newAssessment:', updated);
+          return updated;
+        });
       }
     } catch (error) {
       console.error('Erreur lors de la récupération du coefficient par défaut:', error);
@@ -434,29 +568,18 @@ export function GradesAssessment() {
 
   // Charger les paramètres par défaut pour le semestre et l'année académique
   const loadDefaultSettings = () => {
-    try {
-      const savedSettings = localStorage.getItem('school-settings');
-      if (savedSettings) {
-        const settings = JSON.parse(savedSettings);
-        return {
-          semester: settings.defaultSemester || 1,
-          academicYear: settings.defaultAcademicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
-        };
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement des paramètres par défaut:', error);
-    }
-    
-    const currentYear = new Date().getFullYear();
+    // Utiliser les paramètres du hook schoolSettings
+    console.log('📋 Paramètres par défaut récupérés:', schoolSettings);
     return {
-      semester: 1,
-      academicYear: `${currentYear}-${currentYear + 1}`
+      semester: schoolSettings.defaultSemester,
+      academicYear: schoolSettings.defaultAcademicYear
     };
   };
 
   // Initialiser les paramètres par défaut lors de l'ouverture du formulaire
   const initializeFormWithDefaults = () => {
     const defaults = loadDefaultSettings();
+    console.log('🎯 Initialisation du formulaire avec:', defaults);
     setNewAssessment(prev => ({
       ...prev,
       semester: defaults.semester,
@@ -1272,7 +1395,7 @@ export function GradesAssessment() {
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
-                    <LoadingSpinner size="sm" className="mr-2" />
+                    <LoadingSpinner className="mr-2 h-4 w-4" />
                   ) : (
                     <CheckCircle className="mr-2 h-4 w-4" />
                   )}
@@ -1421,6 +1544,72 @@ export function GradesAssessment() {
 
             <TabsContent value="config" className="space-y-4 mt-4">
               {/* Configuration avancée */}
+              {!isLoadingDefaults && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="text-sm font-medium text-blue-800">📋 Paramètres par défaut configurés</h4>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => {
+                        console.log('🔄 Forcer rechargement des paramètres...');
+                        console.log('📊 schoolSettings actuels:', schoolSettings);
+                        console.log('📊 newAssessment actuel:', newAssessment);
+                        console.log('📊 isLoadingDefaults:', isLoadingDefaults);
+                        console.log('📊 localStorage school-settings:', localStorage.getItem('school-settings'));
+                        
+                        // Forcer le rechargement du hook
+                        refreshSettings();
+                        
+                        // Forcer la mise à jour du formulaire avec les nouvelles valeurs
+                        setTimeout(() => {
+                          const currentSettings = localStorage.getItem('school-settings');
+                          if (currentSettings) {
+                            const parsed = JSON.parse(currentSettings);
+                            console.log('🔄 Application forcée des nouvelles valeurs:', parsed);
+                            setNewAssessment(prev => ({
+                              ...prev,
+                              semester: parsed.defaultSemester,
+                              academicYear: parsed.defaultAcademicYear
+                            }));
+                          }
+                        }, 500);
+                      }}
+                      className="text-xs"
+                    >
+                      🔄 Debug + Sync
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 text-xs text-blue-700">
+                    <div>
+                      <span className="font-medium">Semestre par défaut (schoolSettings):</span> {schoolSettings.defaultSemester}
+                    </div>
+                    <div>
+                      <span className="font-medium">Année par défaut (schoolSettings):</span> {schoolSettings.defaultAcademicYear}
+                    </div>
+                    <div>
+                      <span className="font-medium">Semestre actuel (newAssessment):</span> {newAssessment.semester}
+                    </div>
+                    <div>
+                      <span className="font-medium">Année actuelle (newAssessment):</span> {newAssessment.academicYear}
+                    </div>
+                    <div>
+                      <span className="font-medium">localStorage:</span> {localStorage.getItem('school-settings') || 'Non défini'}
+                    </div>
+                  </div>
+                  {newAssessment.classId && newAssessment.subject && (
+                    <div className="mt-2 text-xs text-blue-700">
+                      <span className="font-medium">Coefficient suggéré:</span> {
+                        (() => {
+                          const classData = classes.find(c => c._id === newAssessment.classId);
+                          return classData ? getSchoolDefaultCoefficient(newAssessment.subject, classData.level) : 1;
+                        })()
+                      }
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="semester">Semestre <span className="text-red-500">*</span></Label>
@@ -1442,6 +1631,7 @@ export function GradesAssessment() {
                       {formErrors.semester}
                     </p>
                   )}
+                  <p className="text-xs text-green-600">✓ Valeur par défaut appliquée</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="academicYear">Année académique <span className="text-red-500">*</span></Label>
@@ -1463,6 +1653,7 @@ export function GradesAssessment() {
                       {formErrors.academicYear}
                     </p>
                   )}
+                  <p className="text-xs text-green-600">✓ Valeur par défaut appliquée</p>
                 </div>
               </div>
 
@@ -1474,12 +1665,20 @@ export function GradesAssessment() {
                     type="number"
                     min="0.5"
                     max="10"
-                    step="0.5"
+                    step="1"
                     value={newAssessment.coefficient || 1}
                     onChange={(e) => updateFormData('coefficient', parseFloat(e.target.value) || 1)}
                     placeholder="1"
                   />
-                  <p className="text-xs text-gray-500">Par défaut: 1</p>
+                  {newAssessment.classId && newAssessment.subject ? (
+                    <p className="text-xs text-green-600">
+                      ✓ Coefficient configuré pour cette matière/classe
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">
+                      Sélectionnez classe et matière pour voir le coefficient configuré
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="maxScore">Note max</Label>
@@ -1533,7 +1732,7 @@ export function GradesAssessment() {
               disabled={!isFormValid || isSubmitting}
             >
               {isSubmitting ? (
-                <LoadingSpinner size="sm" className="mr-2" />
+                <LoadingSpinner className="mr-2 h-4 w-4" />
               ) : (
                 <Plus className="mr-2 h-4 w-4" />
               )}
@@ -1587,7 +1786,7 @@ export function GradesAssessment() {
               disabled={isSubmitting}
             >
               {isSubmitting ? (
-                <LoadingSpinner size="sm" className="mr-2" />
+                <LoadingSpinner className="mr-2 h-4 w-4" />
               ) : (
                 <Trash2 className="mr-2 h-4 w-4" />
               )}
