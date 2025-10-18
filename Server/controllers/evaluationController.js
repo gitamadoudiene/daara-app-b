@@ -308,6 +308,10 @@ const getEvaluationWithStudents = async (req, res) => {
     const { evaluationId } = req.params;
     const teacherId = req.user.userId;
 
+    console.log('🔍 getEvaluationWithStudents - Début');
+    console.log('📋 evaluationId:', evaluationId);
+    console.log('👨‍🏫 teacherId:', teacherId);
+
     const evaluation = await Evaluation.findOne({
       _id: evaluationId,
       teacherId
@@ -316,7 +320,16 @@ const getEvaluationWithStudents = async (req, res) => {
       { path: 'subjectId', select: 'name code' }
     ]);
 
+    console.log('📊 Évaluation trouvée:', !!evaluation);
+    if (evaluation) {
+      console.log('📚 Classe ID:', evaluation.classId?._id);
+      console.log('📚 Nom de classe:', evaluation.classId?.name);
+      console.log('👥 Étudiants dans classe:', evaluation.classId?.students?.length || 0);
+      console.log('👥 Détails des étudiants:', evaluation.classId?.students?.map(s => ({ id: s._id, name: s.name })));
+    }
+
     if (!evaluation) {
+      console.log('❌ Évaluation non trouvée');
       return res.status(404).json({
         success: false,
         message: 'Évaluation non trouvée'
@@ -329,6 +342,34 @@ const getEvaluationWithStudents = async (req, res) => {
     }).select('studentId score isAbsent comment');
 
     console.log('Notes existantes trouvées:', existingGrades.length);
+
+    // Vérifier s'il y a des étudiants dans la classe
+    if (!evaluation.classId.students || evaluation.classId.students.length === 0) {
+      console.log('❌ Aucun étudiant trouvé dans la classe');
+      console.log('🔍 Structure de classId:', JSON.stringify(evaluation.classId, null, 2));
+      
+      // Essayer de récupérer les étudiants directement depuis la collection User
+      const User = require('../models/User');
+      console.log('🔄 Recherche directe des étudiants avec classId:', evaluation.classId._id);
+      
+      const studentsFromUser = await User.find({
+        classId: evaluation.classId._id,
+        role: 'student'
+      }).select('name email');
+      
+      console.log('📊 Étudiants trouvés directement:', studentsFromUser.length);
+      console.log('👥 Détails:', studentsFromUser.map(s => ({ id: s._id, name: s.name, email: s.email })));
+      
+      if (studentsFromUser.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Aucun étudiant trouvé pour cette évaluation'
+        });
+      }
+      
+      // Utiliser les étudiants trouvés directement
+      evaluation.classId.students = studentsFromUser;
+    }
 
     // Intégrer les notes existantes avec les données d'étudiants
     const studentsWithGrades = evaluation.classId.students.map(student => {

@@ -173,6 +173,14 @@ exports.updateUser = async (req, res) => {
     const oldClassId = currentUser.classId;
     const newClassId = req.body.classId;
     
+    console.log('🔍 UPDATE USER - Vérification changement classe:', {
+      userId: req.params.id,
+      userRole: currentUser.role,
+      oldClassId: oldClassId?.toString() || 'null',
+      newClassId: newClassId?.toString() || 'null',
+      bodyClassId: req.body.classId
+    });
+    
     // Traiter l'ID de classe s'il est fourni
     if (newClassId && newClassId !== 'null' && newClassId !== null) {
       if (!mongoose.Types.ObjectId.isValid(newClassId)) {
@@ -185,27 +193,33 @@ exports.updateUser = async (req, res) => {
     
     // Si c'est un étudiant et que sa classe a changé, mettre à jour les arrays students des classes
     if (currentUser.role === 'student' && oldClassId?.toString() !== newClassId?.toString()) {
-      console.log('Changement de classe détecté pour étudiant:', {
+      console.log('🔄 CHANGEMENT DE CLASSE DÉTECTÉ:', {
         userId: req.params.id,
+        userName: currentUser.name,
         oldClassId: oldClassId?.toString(),
         newClassId: newClassId?.toString()
       });
       
       // Retirer l'étudiant de l'ancienne classe
       if (oldClassId) {
-        await Class.findByIdAndUpdate(oldClassId, {
+        const removeResult = await Class.findByIdAndUpdate(oldClassId, {
           $pull: { students: req.params.id }
         });
-        console.log('Étudiant retiré de l\'ancienne classe:', oldClassId);
+        console.log('✅ Étudiant retiré de l\'ancienne classe:', oldClassId, removeResult ? 'succès' : 'échec');
       }
       
       // Ajouter l'étudiant à la nouvelle classe
       if (newClassId && newClassId !== 'null' && newClassId !== null) {
-        await Class.findByIdAndUpdate(newClassId, {
+        const addResult = await Class.findByIdAndUpdate(newClassId, {
           $addToSet: { students: req.params.id } // $addToSet évite les doublons
         });
-        console.log('Étudiant ajouté à la nouvelle classe:', newClassId);
+        console.log('✅ Étudiant ajouté à la nouvelle classe:', newClassId, addResult ? 'succès' : 'échec');
       }
+    } else {
+      console.log('❌ Pas de changement de classe ou pas un étudiant:', {
+        isStudent: currentUser.role === 'student',
+        sameClass: oldClassId?.toString() === newClassId?.toString()
+      });
     }
     
     res.json(user);
@@ -339,7 +353,9 @@ exports.getAllStudents = async (req, res) => {
 // Récupérer tous les étudiants non assignés à une classe
 exports.getUnassignedStudents = async (req, res) => {
   try {
-    const { schoolId } = req.query;
+    console.log('🔍 getUnassignedStudents - Début');
+    const { schoolId } = req.params; // Changé de req.query à req.params
+    console.log('🏫 School ID reçu:', schoolId);
     
     let filter = { 
       role: 'student',
@@ -350,13 +366,31 @@ exports.getUnassignedStudents = async (req, res) => {
     };
 
     if (schoolId) {
-      filter.schoolId = schoolId;
+      // Validation de l'ObjectId
+      if (!mongoose.Types.ObjectId.isValid(schoolId)) {
+        console.log('❌ School ID invalide:', schoolId);
+        return res.status(400).json({ message: 'ID d\'école invalide' });
+      }
+      filter.schoolId = new mongoose.Types.ObjectId(schoolId);
+      console.log('✅ Filtre avec schoolId:', filter);
+    } else {
+      console.log('⚠️ Aucun schoolId fourni, recherche globale');
     }
 
+    console.log('🔍 Recherche avec filtre:', JSON.stringify(filter, null, 2));
     const unassignedStudents = await User.find(filter)
       .populate('schoolId', 'name')
       .select('-password')
       .sort({ name: 1 });
+
+    console.log('📊 Étudiants non assignés trouvés:', unassignedStudents.length);
+    console.log('👥 Détails des étudiants:', unassignedStudents.map(s => ({
+      id: s._id,
+      name: s.name,
+      email: s.email,
+      classId: s.classId,
+      schoolId: s.schoolId
+    })));
 
     res.json(unassignedStudents);
   } catch (err) {
@@ -423,9 +457,13 @@ exports.assignStudentsToClass = async (req, res) => {
       { classId: classId }
     );
 
-    // Mettre à jour le nombre d'étudiants dans la classe
-    const newEnrollmentCount = currentEnrollment + result.modifiedCount;
-    await Class.findByIdAndUpdate(classId, { studentCount: newEnrollmentCount });
+    // CORRECTION: Ajouter les étudiants au tableau students de la classe
+    await Class.findByIdAndUpdate(classId, {
+      $addToSet: { students: { $each: studentIds } }, // Ajouter sans doublons
+      studentCount: currentEnrollment + result.modifiedCount
+    });
+
+    console.log(`✅ ${result.modifiedCount} étudiants ajoutés au tableau Class.students`);
 
     // Récupérer les étudiants mis à jour
     const updatedStudents = await User.find({ _id: { $in: studentIds } })

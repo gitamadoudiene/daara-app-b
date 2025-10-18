@@ -122,11 +122,28 @@ export function ClassAssignment() {
       setLoading(true);
       const token = localStorage.getItem('daara_token');
       
+      console.log('🔄 DÉBUT AFFECTATION ÉTUDIANT:', {
+        studentId,
+        classId,
+        timestamp: new Date().toISOString()
+      });
+      
       // Trouver le nom de la classe pour l'affichage
       const selectedClass = classes.find(cls => cls._id === classId);
       const className = selectedClass?.name || 'Classe inconnue';
       
+      console.log('📚 Classe sélectionnée:', {
+        classId,
+        className,
+        selectedClass
+      });
+      
       // Mettre à jour l'étudiant avec sa nouvelle classe
+      console.log('📤 Envoi requête PUT:', {
+        url: `http://localhost:5000/api/users/${studentId}`,
+        body: { classId: classId }
+      });
+      
       const response = await fetch(`http://localhost:5000/api/users/${studentId}`, {
         method: 'PUT',
         headers: {
@@ -137,19 +154,34 @@ export function ClassAssignment() {
           classId: classId // Maintenant on envoie l'ID de la classe
         })
       });
+      
+      console.log('📨 Réponse serveur:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText
+      });
 
       if (response.ok) {
+        const responseData = await response.json();
+        console.log('✅ Succès affectation:', responseData);
+        
         toast.success(`Étudiant assigné à la classe ${className}`);
+        
+        console.log('🔄 Rafraîchissement des données...');
         // Rafraîchir les données
-        fetchStudents();
-        fetchClasses();
+        await fetchStudents();
+        await fetchClasses();
+        console.log('✅ Données rafraîchies');
       } else {
-        throw new Error('Erreur lors de l\'assignation');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Erreur serveur:', errorData);
+        throw new Error(`Erreur ${response.status}: ${errorData.message || 'Erreur lors de l\'assignation'}`);
       }
     } catch (error) {
-      console.error('Erreur:', error);
-      toast.error('Erreur lors de l\'assignation de l\'étudiant');
+      console.error('💥 Erreur complète:', error);
+      toast.error(`Erreur lors de l'affectation: ${error.message}`);
     } finally {
+      console.log('🏁 Fin affectation');
       setLoading(false);
     }
   };

@@ -927,7 +927,7 @@ export function SchoolStructure() {
         console.log(`Réassignation de ${deletingClass.enrolled} élève(s) de la classe ${deletingClass.name}`);
         
         // Récupérer les élèves de cette classe
-        const studentsResponse = await fetch(`/api/classes/${deletingClass.id}/students`, {
+        const studentsResponse = await fetch(`http://localhost:5000/api/classes/${deletingClass.id}/students`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -935,17 +935,41 @@ export function SchoolStructure() {
         });
 
         if (studentsResponse.ok) {
-          const students = await studentsResponse.json();
+          const studentsData = await studentsResponse.json();
+          console.log('Réponse API étudiants:', studentsData);
+          
+          // Vérifier le format de la réponse et extraire le tableau d'étudiants
+          let students = [];
+          if (Array.isArray(studentsData)) {
+            students = studentsData;
+          } else if (studentsData && Array.isArray(studentsData.data)) {
+            students = studentsData.data;
+          } else if (studentsData && Array.isArray(studentsData.students)) {
+            students = studentsData.students;
+          } else {
+            console.warn('Format de réponse inattendu pour les étudiants:', studentsData);
+            students = [];
+          }
+          
+          console.log(`Étudiants trouvés: ${students.length}`);
           
           // Réassigner chaque élève au statut non assigné
           for (const student of students) {
-            await fetch(`/api/users/students/${student._id}/unassign`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              }
-            });
+            try {
+              await fetch(`http://localhost:5000/api/users/${student._id}`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  classId: null
+                })
+              });
+              console.log(`Étudiant ${student.firstName || student.name} désassigné`);
+            } catch (error) {
+              console.error(`Erreur lors de la désassignation de l'étudiant ${student._id}:`, error);
+            }
           }
           
           console.log(`${students.length} élève(s) réassigné(s) au statut non assigné`);

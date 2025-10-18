@@ -268,25 +268,54 @@ exports.updateClass = async (req, res) => {
 exports.deleteClass = async (req, res) => {
   try {
     const classId = req.params.id;
-    const deletedClass = await Class.findByIdAndDelete(classId);
     
-    if (!deletedClass) {
+    console.log('🗑️ Tentative de suppression de classe:', classId);
+    
+    // Vérifier d'abord si la classe existe
+    const classToDelete = await Class.findById(classId);
+    if (!classToDelete) {
       return res.status(404).json({ message: 'Classe non trouvée' });
     }
     
+    console.log('📚 Classe trouvée:', classToDelete.name);
+    
+    // Compter les étudiants dans cette classe
+    const User = require('../models/User');
+    const studentsInClass = await User.countDocuments({ classId: classId, role: 'student' });
+    console.log('👥 Étudiants dans la classe:', studentsInClass);
+    
     // Mettre à jour les utilisateurs (étudiants) assignés à cette classe
     // pour les rendre "non assignés"
-    const User = require('../models/User');
-    await User.updateMany(
-      { classId: classId }, 
-      { $unset: { classId: 1 } }
-    );
+    if (studentsInClass > 0) {
+      const updateResult = await User.updateMany(
+        { classId: classId }, 
+        { $unset: { classId: 1 } }
+      );
+      console.log('✅ Étudiants mis à jour:', updateResult.modifiedCount);
+    }
     
-    console.log(`Classe ${deletedClass.nom} supprimée. Étudiants remis en "non assignés".`);
-    res.json({ message: 'Classe supprimée avec succès et étudiants remis en "non assignés"' });
+    // Supprimer la classe
+    const deletedClass = await Class.findByIdAndDelete(classId);
+    
+    if (!deletedClass) {
+      return res.status(500).json({ message: 'Erreur lors de la suppression' });
+    }
+    
+    console.log(`✅ Classe ${deletedClass.name} supprimée. ${studentsInClass} étudiant(s) remis en "non assignés".`);
+    res.json({ 
+      message: 'Classe supprimée avec succès et étudiants remis en "non assignés"',
+      deletedClass: {
+        id: deletedClass._id,
+        name: deletedClass.name,
+        studentsAffected: studentsInClass
+      }
+    });
   } catch (err) {
-    console.error('Erreur lors de la suppression de la classe:', err);
-    res.status(500).json({ message: err.message });
+    console.error('❌ Erreur lors de la suppression de la classe:', err);
+    res.status(500).json({ 
+      message: 'Erreur lors de la suppression de la classe',
+      error: err.message 
+    });
   }
 };
 
