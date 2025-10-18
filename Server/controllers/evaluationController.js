@@ -338,6 +338,10 @@ const getEvaluationWithStudents = async (req, res) => {
       evaluationId
     }).select('studentId score isAbsent comment');
 
+    console.log('DEBUG - Evaluation found:', evaluation);
+    console.log('DEBUG - Students from classId:', evaluation.classId.students);
+    console.log('DEBUG - First student:', evaluation.classId.students?.[0]);
+
     res.json({
       success: true,
       data: {
@@ -363,6 +367,11 @@ const submitGrades = async (req, res) => {
     const { evaluationId } = req.params;
     const { grades } = req.body; // Array of { studentId, score, isAbsent, comment }
     const teacherId = req.user.userId;
+
+    console.log('[DEBUG] submitGrades - Début sauvegarde des notes');
+    console.log('[DEBUG] evaluationId:', evaluationId);
+    console.log('[DEBUG] teacherId:', teacherId);
+    console.log('[DEBUG] grades reçues:', JSON.stringify(grades, null, 2));
 
     // Vérifier que l'évaluation appartient à l'enseignant
     const evaluation = await Evaluation.findOne({
@@ -390,11 +399,14 @@ const submitGrades = async (req, res) => {
     await Grade.deleteMany({ evaluationId });
 
     // Créer les nouvelles notes
+    console.log('[DEBUG] Données à sauvegarder:', JSON.stringify(gradesData, null, 2));
     const createdGrades = await Grade.createGradesFromEvaluation(evaluationId, gradesData);
+    console.log('[DEBUG] Notes créées avec succès, nombre:', createdGrades.length);
 
     // Mettre à jour le statut de l'évaluation
     evaluation.status = 'corrigee';
     await evaluation.save();
+    console.log('[DEBUG] Évaluation mise à jour avec statut: corrigee');
 
     res.json({
       success: true,

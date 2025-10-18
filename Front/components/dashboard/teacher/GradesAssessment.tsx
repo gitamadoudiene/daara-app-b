@@ -500,8 +500,9 @@ export function GradesAssessment() {
         throw new Error("Évaluation non trouvée");
       }
       
-      // Récupérer les étudiants de la classe
-      const response = await fetch(`http://localhost:5000/api/classes/${assessment.classId}/students`, {
+      // Récupérer les étudiants de la classe directement depuis l'endpoint d'évaluation
+      console.log('[DEBUG] Utilisation de l\'endpoint évaluation pour récupérer les étudiants');
+      const response = await fetch(`http://localhost:5000/api/evaluations/${assessmentId}/students`, {
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
@@ -509,48 +510,74 @@ export function GradesAssessment() {
       });
       
       const data = await response.json();
-      console.log('Réponse de l\'API pour les étudiants:', data);
+      console.log('[DEBUG] Réponse de l\'API pour les étudiants:', data);
+      console.log('[DEBUG] data.success:', data.success);
+      console.log('[DEBUG] data.data:', data.data);
+      console.log('[DEBUG] Type de data.data:', typeof data.data);
+      console.log('[DEBUG] Is Array?:', Array.isArray(data.data));
+      console.log('[DEBUG] Keys of data:', Object.keys(data));
       
       if (data.success) {
-        // Transformer les données pour correspondre à l'interface Student
-        const students = data.data.map((student: any) => ({
-          _id: student._id,
-          name: `${student.firstName} ${student.lastName}`,
-          email: student.email,
-          grade: 0, // Par défaut, pas de note
-          comment: '',
-          graded: false
-        }));
+        console.log('[DEBUG] ✅ Entrée dans data.success - transformation commencée');
         
-        // Ensuite, récupérer les notes existantes pour cette évaluation
-        try {
-          // Utiliser le nouveau endpoint pour récupérer les étudiants et notes d'une évaluation
-          const gradesResponse = await fetch(`http://localhost:5000/api/evaluations/${assessmentId}/students`, {
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
-            }
-          });
-          
-          const gradesData = await gradesResponse.json();
-          console.log('Notes existantes:', gradesData);
-          
-          if (gradesData.success && gradesData.data && gradesData.data.length > 0) {
-            // Mettre à jour les notes et commentaires des étudiants
-            gradesData.data.forEach((grade: any) => {
-              const studentIndex = students.findIndex((s: Student) => s._id === grade.studentId);
-              if (studentIndex !== -1) {
-                students[studentIndex].grade = grade.score;
-                students[studentIndex].comment = grade.comment || '';
-                students[studentIndex].graded = true;
-              }
-            });
+        // Vérifier le format des données et s'adapter en conséquence
+        let studentsArray = [];
+        
+        if (Array.isArray(data.data)) {
+          studentsArray = data.data;
+        } else if (data.data && typeof data.data === 'object') {
+          // Si data.data est un objet, chercher les étudiants dans ses propriétés
+          if (data.data.students && Array.isArray(data.data.students)) {
+            studentsArray = data.data.students;
+          } else if (data.data.evaluation && data.data.evaluation.students && Array.isArray(data.data.evaluation.students)) {
+            studentsArray = data.data.evaluation.students;
+          } else {
+            console.error('[DEBUG] Structure de données inattendue:', data.data);
+            throw new Error('Format de données inattendu pour les étudiants');
           }
-        } catch (gradeError) {
-          console.error('Erreur lors de la récupération des notes existantes:', gradeError);
+        } else if (data.students && Array.isArray(data.students)) {
+          studentsArray = data.students;
+        } else {
+          console.error('[DEBUG] Aucun tableau d\'étudiants trouvé dans:', data);
+          throw new Error('Aucun tableau d\'étudiants trouvé');
         }
         
+        console.log('[DEBUG] Tableau d\'étudiants extrait:', studentsArray);
+        console.log('[DEBUG] Nombre d\'étudiants:', studentsArray.length);
+        
+        // Transformer les données pour correspondre à l'interface Student
+        const students = studentsArray.map((student: any) => {
+          console.log('[DEBUG] 🔄 Transformation étudiant:', student);
+          console.log('[DEBUG] 📝 student.name value:', student.name);
+          console.log('[DEBUG] 🔑 Keys of student:', Object.keys(student));
+          
+          // Mapping robuste avec vérification des champs
+          const studentName = student.name || 
+                             student.fullName || 
+                             (student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : '') ||
+                             'Nom manquant';
+                             
+          const transformedStudent = {
+            _id: student._id || student.id,
+            name: studentName,
+            email: student.email,
+            grade: 0,
+            comment: '',
+            graded: false
+          };
+          console.log('[DEBUG] ✨ Étudiant transformé:', transformedStudent);
+          return transformedStudent;
+        });
+        
+        console.log('[DEBUG] 📋 Étudiants transformés (total:', students.length, '):', students);
+        console.log('[DEBUG] 👤 Premier étudiant transformé:', students[0]);
+        
         setStudentsToGrade(students);
+        console.log('[DEBUG] 🎯 studentsToGrade mis à jour avec:', students);
+        console.log('[DEBUG] 🎯 Premier étudiant dans le state:', students[0]);
+        
+        // Forcer le re-render en créant une nouvelle référence
+        setStudentsToGrade([...students]);
         
         // Initialiser les entrées de notes
         const initialGradesInput: {[studentId: string]: GradeInput} = {};
@@ -1141,7 +1168,12 @@ export function GradesAssessment() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {(() => {
+                    console.log('[DEBUG] 🎭 studentsToGrade avant rendu:', studentsToGrade);
+                    return null;
+                  })()}
                   {studentsToGrade.map((student) => {
+                    console.log('[DEBUG] Rendu étudiant:', student);
                     const isAbsent = gradesInput[student._id]?.isAbsent || false;
                     const currentScore = gradesInput[student._id]?.score || 0;
                     const isValidScore = currentScore >= 0 && currentScore <= 20;
@@ -1151,7 +1183,7 @@ export function GradesAssessment() {
                         <TableCell className="font-medium">
                           <div className="flex items-center space-x-2">
                             <div>
-                              <div>{student.name}</div>
+                              <div>{student.name || 'Nom manquant'}</div>
                               {student.email && (
                                 <div className="text-xs text-gray-500">{student.email}</div>
                               )}

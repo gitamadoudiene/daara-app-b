@@ -94,13 +94,19 @@ const GradeEntryDialog: React.FC<GradeEntryDialogProps> = ({
       }
 
       const result = await response.json();
+      console.log('DEBUG - API Response:', result);
+      console.log('DEBUG - Students data:', result.data?.students);
+      console.log('DEBUG - First student:', result.data?.students?.[0]);
+      
       setStudents(result.data.students || []);
+      console.log('[DEBUG] Students set in state:', result.data.students);
       
       // Initialiser les notes avec les données existantes
       const existingGrades = result.data.existingGrades || [];
       const initialGrades: Record<string, GradeEntry> = {};
       
       result.data.students.forEach((student: Student) => {
+        console.log('DEBUG - Student object:', student);
         const existingGrade = existingGrades.find((g: ExistingGrade) => g.studentId === student._id);
         initialGrades[student._id] = {
           studentId: student._id,
@@ -153,6 +159,8 @@ const GradeEntryDialog: React.FC<GradeEntryDialogProps> = ({
 
   const handleSaveGrades = async () => {
     try {
+      console.log('[DEBUG] Début sauvegarde des notes');
+      console.log('[DEBUG] evaluation._id:', evaluation._id);
       setSaving(true);
       setError(null);
 
@@ -170,6 +178,8 @@ const GradeEntryDialog: React.FC<GradeEntryDialogProps> = ({
         comment: grade.comment
       }));
 
+      console.log('[DEBUG] Notes à sauvegarder:', JSON.stringify(gradesData, null, 2));
+
       const response = await fetch(`http://localhost:5000/api/evaluations/${evaluation._id}/grades`, {
         method: 'POST',
         headers: {
@@ -178,6 +188,8 @@ const GradeEntryDialog: React.FC<GradeEntryDialogProps> = ({
         },
         body: JSON.stringify({ grades: gradesData })
       });
+      
+      console.log('[DEBUG] Réponse du serveur - Status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -323,6 +335,7 @@ const GradeEntryDialog: React.FC<GradeEntryDialogProps> = ({
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-2">
             {students.map((student) => {
+              console.log('[DEBUG] Rendering student:', student);
               const grade = grades[student._id] || { studentId: student._id, score: '', isAbsent: false, comment: '' };
               
               return (
@@ -331,7 +344,10 @@ const GradeEntryDialog: React.FC<GradeEntryDialogProps> = ({
                     <div className="flex items-center gap-4">
                       {/* Nom de l'élève */}
                       <div className="flex-1">
-                        <span className="font-medium">{student.name}</span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{student.name}</span>
+                          <span className="text-sm text-gray-500">{student.email}</span>
+                        </div>
                       </div>
 
                       {/* Checkbox absent */}

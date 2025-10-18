@@ -180,6 +180,10 @@ gradeSchema.statics.calculateSubjectAverage = async function(studentId, subjectN
 
 // Méthode statique pour créer des notes à partir d'une évaluation
 gradeSchema.statics.createGradesFromEvaluation = async function(evaluationId, gradesData) {
+  console.log('[DEBUG] createGradesFromEvaluation - Début');
+  console.log('[DEBUG] evaluationId:', evaluationId);
+  console.log('[DEBUG] gradesData:', JSON.stringify(gradesData, null, 2));
+  
   const Evaluation = mongoose.model('Evaluation');
   const evaluation = await Evaluation.findById(evaluationId);
   
@@ -187,6 +191,7 @@ gradeSchema.statics.createGradesFromEvaluation = async function(evaluationId, gr
     throw new Error('Évaluation non trouvée');
   }
   
+  console.log('[DEBUG] Évaluation trouvée:', evaluation._id);
   const grades = [];
   
   for (const gradeData of gradesData) {
@@ -213,8 +218,11 @@ gradeSchema.statics.createGradesFromEvaluation = async function(evaluationId, gr
     });
     
     await grade.save();
+    console.log('[DEBUG] Note sauvegardée pour étudiant:', gradeData.studentId, 'score:', gradeData.score);
     grades.push(grade);
   }
+  
+  console.log('[DEBUG] Toutes les notes sauvegardées, total:', grades.length);
   
   // Mettre à jour les statistiques de l'évaluation
   await evaluation.calculateStats();
