@@ -117,10 +117,14 @@ export function ClassAssignment() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.schoolId]);
 
-  const assignStudentToClass = async (studentId: string, className: string) => {
+  const assignStudentToClass = async (studentId: string, classId: string) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('daara_token');
+      
+      // Trouver le nom de la classe pour l'affichage
+      const selectedClass = classes.find(cls => cls._id === classId);
+      const className = selectedClass?.name || 'Classe inconnue';
       
       // Mettre à jour l'étudiant avec sa nouvelle classe
       const response = await fetch(`http://localhost:5000/api/users/${studentId}`, {
@@ -130,7 +134,7 @@ export function ClassAssignment() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          classId: className // Utilisation de classId au lieu de class
+          classId: classId // Maintenant on envoie l'ID de la classe
         })
       });
 
@@ -260,13 +264,13 @@ export function ClassAssignment() {
                           <p className="text-sm text-muted-foreground">{student.email}</p>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Select onValueChange={(className) => assignStudentToClass(student._id, className)}>
+                          <Select onValueChange={(classId) => assignStudentToClass(student._id, classId)}>
                             <SelectTrigger className="w-48">
                               <SelectValue placeholder="Choisir une classe" />
                             </SelectTrigger>
                             <SelectContent>
                               {classes.map((cls) => (
-                                <SelectItem key={cls._id} value={cls.name}>
+                                <SelectItem key={cls._id} value={cls._id}>
                                   {cls.name} - {cls.level}
                                 </SelectItem>
                               ))}
@@ -393,13 +397,13 @@ export function ClassAssignment() {
                             Retirer de la classe
                           </Button>
                         ) : (
-                          <Select onValueChange={(className) => assignStudentToClass(student._id, className)}>
+                          <Select onValueChange={(classId) => assignStudentToClass(student._id, classId)}>
                             <SelectTrigger className="w-48">
                               <SelectValue placeholder="Assigner à une classe" />
                             </SelectTrigger>
                             <SelectContent>
                               {classes.map((cls) => (
-                                <SelectItem key={cls._id} value={cls.name}>
+                                <SelectItem key={cls._id} value={cls._id}>
                                   {cls.name} - {cls.level}
                                 </SelectItem>
                               ))}

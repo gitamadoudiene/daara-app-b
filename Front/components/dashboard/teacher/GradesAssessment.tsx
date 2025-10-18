@@ -593,7 +593,15 @@ export function GradesAssessment() {
 
   // Gérer la soumission des notes
   const handleSubmitGrades = async () => {
-    if (!selectedAssessment) return;
+    if (!selectedAssessment) {
+      console.error('❌ Aucune évaluation sélectionnée');
+      return;
+    }
+    
+    console.log('🚀 DÉBUT SOUMISSION NOTES');
+    console.log('📝 Évaluation sélectionnée:', selectedAssessment);
+    console.log('👥 Étudiants à noter:', studentsToGrade.length);
+    console.log('📊 Données de saisie complètes:', gradesInput);
     
     setIsSubmitting(true);
     
@@ -605,10 +613,15 @@ export function GradesAssessment() {
       
       console.log('=== FRONTEND SUBMIT GRADES ===');
       console.log('Evaluation ID:', selectedAssessment._id || selectedAssessment.id);
-      console.log('Grades input:', gradesInput);
-      console.log('Grades to submit:', gradesToSubmit);
+      console.log('Grades input (TOUT):', gradesInput);
+      console.log('Grades to submit (FILTRÉES):', gradesToSubmit);
+      console.log('📊 Analyse du filtrage:');
+      console.log('  - Notes avec score > 0:', Object.values(gradesInput).filter(g => g.score > 0).length);
+      console.log('  - Notes marquées absentes:', Object.values(gradesInput).filter(g => g.isAbsent).length);
+      console.log('  - Notes retenues pour soumission:', gradesToSubmit.length);
       
       if (gradesToSubmit.length === 0) {
+        console.warn('⚠️ Aucune note à soumettre après filtrage');
         toast({
           title: "⚠️ Aucune note à enregistrer",
           description: "Veuillez saisir au moins une note ou marquer des absences.",
@@ -624,6 +637,7 @@ export function GradesAssessment() {
       );
       
       if (invalidGrades.length > 0) {
+        console.error('❌ Notes invalides détectées:', invalidGrades);
         toast({
           title: "⚠️ Notes invalides",
           description: `${invalidGrades.length} note(s) non conforme(s). Les notes doivent être entre 0 et 20.`,
@@ -638,7 +652,9 @@ export function GradesAssessment() {
         evaluationId: selectedAssessment._id || selectedAssessment.id
       };
       
-      console.log('Request body:', requestBody);
+      console.log('📤 Corps de la requête:', requestBody);
+      console.log('🔗 URL de l\'endpoint:', `http://localhost:5000/api/evaluations/${selectedAssessment._id || selectedAssessment.id}/grades`);
+      console.log('🔑 Token d\'authentification:', localStorage.getItem('daara_token') ? 'Présent' : 'Absent');
       
       // Utiliser le nouveau endpoint pour soumettre les notes
       const response = await fetch(`http://localhost:5000/api/evaluations/${selectedAssessment._id || selectedAssessment.id}/grades`, {
@@ -650,12 +666,20 @@ export function GradesAssessment() {
         body: JSON.stringify(requestBody)
       });
       
+      console.log('📨 Statut de la réponse:', response.status);
+      console.log('📨 Headers de réponse:', response.headers);
+      
       const data = await response.json();
-      console.log('Server response:', data);
+      console.log('📥 Réponse complète du serveur:', data);
       
       if (data.success) {
         const gradedCount = gradesToSubmit.filter(g => !g.isAbsent).length;
         const absentCount = gradesToSubmit.filter(g => g.isAbsent).length;
+        
+        console.log('✅ Succès! Statistiques:');
+        console.log('  - Notes saisies:', gradedCount);
+        console.log('  - Absences:', absentCount);
+        console.log('  - Moyenne calculée:', data.data?.averageGrade);
         
         toast({
           title: "✅ Notes enregistrées avec succès",
@@ -670,7 +694,7 @@ export function GradesAssessment() {
               ? 'completed' 
               : gradedCount > 0 ? 'inProgress' : assessment.status;
             
-            console.log('Updating assessment with average:', data.data?.averageGrade);
+            console.log('🔄 Mise à jour évaluation avec moyenne:', data.data?.averageGrade);
             
             return {
               ...assessment,
@@ -682,10 +706,11 @@ export function GradesAssessment() {
           return assessment;
         });
         
-        console.log('Updated assessments:', updatedAssessments);
+        console.log('📊 Évaluations mises à jour:', updatedAssessments);
         setAssessments(updatedAssessments);
         setShowGradeDialog(false);
       } else {
+        console.error('❌ Échec côté serveur:', data);
         toast({
           title: "❌ Échec de l'enregistrement",
           description: data.message || "Impossible d'enregistrer les notes. Vérifiez les données saisies.",
@@ -693,13 +718,15 @@ export function GradesAssessment() {
         });
       }
     } catch (error) {
-      console.error('Erreur lors de la soumission des notes:', error);
+      console.error('💥 Erreur lors de la soumission des notes:', error);
+      console.error('Stack trace:', error.stack);
       toast({
         title: "❌ Erreur de connexion",
         description: "Problème de communication avec le serveur. Veuillez réessayer.",
         variant: "destructive"
       });
     } finally {
+      console.log('🏁 Fin de soumission, isSubmitting = false');
       setIsSubmitting(false);
     }
   };
@@ -814,6 +841,14 @@ export function GradesAssessment() {
         // Mapper les types du serveur vers les types d'interface
         const mappedType = mapServerTypeToFrontend(data.data.type) || newAssessment.type!;
         
+        // Récupérer le nombre d'étudiants de la classe sélectionnée
+        const selectedClassData = classes.find(c => c._id === newAssessment.classId);
+        const classStudentCount = selectedClassData?.studentCount || 0;
+        
+        console.log('Création évaluation - Classe sélectionnée:', selectedClassData);
+        console.log('Nombre d\'étudiants dans la classe:', classStudentCount);
+        console.log('Stats retournées par le serveur:', data.data.stats);
+        
         const newAssessmentWithId: Assessment = {
           _id: data.data._id,
           id: data.data._id,
@@ -823,7 +858,7 @@ export function GradesAssessment() {
           subject: data.data.subjectId?.name || newAssessment.subject || 'N/A',
           type: mappedType, // Utiliser le type mappé pour l'interface
           date: data.data.plannedDate,
-          totalStudents: data.data.stats?.totalStudents || 0,
+          totalStudents: data.data.stats?.totalStudents || classStudentCount,
           gradedStudents: data.data.stats?.submittedGrades || 0,
           averageGrade: 0,
           status: data.data.status === 'programmee' ? 'pending' : 

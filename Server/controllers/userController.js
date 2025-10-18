@@ -143,6 +143,10 @@ exports.getUserById = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
   try {
+    const mongoose = require('mongoose');
+    const User = require('../models/User');
+    const Class = require('../models/Class');
+    
     // Harmonisation de class et classId
     if (req.body.class !== undefined && req.body.classId === undefined) {
       req.body.classId = req.body.class;
@@ -153,7 +157,6 @@ exports.updateUser = async (req, res) => {
     
     // Cast children IDs to ObjectId if present
     if (req.body.children && Array.isArray(req.body.children)) {
-      const mongoose = require('mongoose');
       const validIds = req.body.children.filter(id => mongoose.Types.ObjectId.isValid(id));
       if (validIds.length !== req.body.children.length) {
         return res.status(400).json({ message: 'One or more children IDs are invalid ObjectIds.' });
@@ -161,15 +164,50 @@ exports.updateUser = async (req, res) => {
       req.body.children = validIds.map(id => new mongoose.Types.ObjectId(id));
     }
     
+    // Récupérer l'utilisateur actuel pour vérifier les changements de classe
+    const currentUser = await User.findById(req.params.id);
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    const oldClassId = currentUser.classId;
+    const newClassId = req.body.classId;
+    
     // Traiter l'ID de classe s'il est fourni
-    if (req.body.classId && req.body.classId !== 'null' && req.body.classId !== null) {
-      if (!mongoose.Types.ObjectId.isValid(req.body.classId)) {
+    if (newClassId && newClassId !== 'null' && newClassId !== null) {
+      if (!mongoose.Types.ObjectId.isValid(newClassId)) {
         return res.status(400).json({ message: 'ID de classe invalide' });
       }
     }
     
+    // Mettre à jour l'utilisateur
     const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    // Si c'est un étudiant et que sa classe a changé, mettre à jour les arrays students des classes
+    if (currentUser.role === 'student' && oldClassId?.toString() !== newClassId?.toString()) {
+      console.log('Changement de classe détecté pour étudiant:', {
+        userId: req.params.id,
+        oldClassId: oldClassId?.toString(),
+        newClassId: newClassId?.toString()
+      });
+      
+      // Retirer l'étudiant de l'ancienne classe
+      if (oldClassId) {
+        await Class.findByIdAndUpdate(oldClassId, {
+          $pull: { students: req.params.id }
+        });
+        console.log('Étudiant retiré de l\'ancienne classe:', oldClassId);
+      }
+      
+      // Ajouter l'étudiant à la nouvelle classe
+      if (newClassId && newClassId !== 'null' && newClassId !== null) {
+        await Class.findByIdAndUpdate(newClassId, {
+          $addToSet: { students: req.params.id } // $addToSet évite les doublons
+        });
+        console.log('Étudiant ajouté à la nouvelle classe:', newClassId);
+      }
+    }
+    
     res.json(user);
   } catch (err) {
     console.error('Erreur lors de la mise à jour de l\'utilisateur:', err);
