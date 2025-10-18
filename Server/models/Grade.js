@@ -37,7 +37,7 @@ const gradeSchema = new mongoose.Schema({
   },
   evaluationType: { 
     type: String, 
-    enum: ['devoir', 'examen', 'projet', 'presentation', 'participation', 'autre'], 
+    enum: ['devoir', 'controle', 'examen', 'composition', 'projet', 'presentation', 'participation', 'oral', 'autre'], 
     required: true 
   },
   
@@ -180,53 +180,80 @@ gradeSchema.statics.calculateSubjectAverage = async function(studentId, subjectN
 
 // Méthode statique pour créer des notes à partir d'une évaluation
 gradeSchema.statics.createGradesFromEvaluation = async function(evaluationId, gradesData) {
-  console.log('[DEBUG] createGradesFromEvaluation - Début');
-  console.log('[DEBUG] evaluationId:', evaluationId);
-  console.log('[DEBUG] gradesData:', JSON.stringify(gradesData, null, 2));
+  console.log('=== DEBUT createGradesFromEvaluation ===');
+  console.log('evaluationId:', evaluationId);
+  console.log('gradesData count:', gradesData?.length);
+  console.log('premier grade:', gradesData?.[0]);
   
   const Evaluation = mongoose.model('Evaluation');
-  const evaluation = await Evaluation.findById(evaluationId);
+  const evaluation = await Evaluation.findById(evaluationId).populate('subjectId');
   
   if (!evaluation) {
+    console.error('❌ Évaluation non trouvée pour ID:', evaluationId);
     throw new Error('Évaluation non trouvée');
   }
   
-  console.log('[DEBUG] Évaluation trouvée:', evaluation._id);
+  console.log('✅ Évaluation trouvée:', evaluation.title);
+  console.log('Matière évaluation:', evaluation.subjectId);
+  
   const grades = [];
   
-  for (const gradeData of gradesData) {
-    const grade = new this({
-      evaluationId,
-      studentId: gradeData.studentId,
-      teacherId: evaluation.teacherId,
-      classId: evaluation.classId,
-      schoolId: evaluation.schoolId,
-      subject: gradeData.subject || evaluation.subjectId.name, // Utiliser le nom de la matière
-      evaluationType: evaluation.type,
-      score: gradeData.score,
-      maxScore: evaluation.maxScore || 20,
-      title: evaluation.title,
-      description: evaluation.description,
-      comment: gradeData.comment,
-      semester: evaluation.semester,
-      academicYear: evaluation.academicYear,
-      evaluationDate: evaluation.actualDate || evaluation.plannedDate,
-      coefficient: evaluation.coefficient,
-      isAbsent: gradeData.isAbsent || false,
-      absentReason: gradeData.absentReason,
-      isPublished: false // Par défaut non publié
-    });
+  for (let i = 0; i < gradesData.length; i++) {
+    const gradeData = gradesData[i];
+    console.log(`--- Traitement note ${i + 1}/${gradesData.length} ---`);
+    console.log('studentId:', gradeData.studentId);
+    console.log('score:', gradeData.score);
+    console.log('isAbsent:', gradeData.isAbsent);
     
-    await grade.save();
-    console.log('[DEBUG] Note sauvegardée pour étudiant:', gradeData.studentId, 'score:', gradeData.score);
-    grades.push(grade);
+    try {
+      const gradeObj = {
+        evaluationId,
+        studentId: gradeData.studentId,
+        teacherId: evaluation.teacherId,
+        classId: evaluation.classId,
+        schoolId: evaluation.schoolId,
+        subject: gradeData.subject || evaluation.subjectId?.name || 'Matière inconnue',
+        evaluationType: evaluation.type,
+        score: gradeData.score || 0,
+        maxScore: evaluation.maxScore || 20,
+        title: evaluation.title,
+        description: evaluation.description,
+        comment: gradeData.comment || '',
+        semester: evaluation.semester,
+        academicYear: evaluation.academicYear,
+        evaluationDate: evaluation.actualDate || evaluation.plannedDate,
+        coefficient: evaluation.coefficient,
+        isAbsent: gradeData.isAbsent || false,
+        absentReason: gradeData.absentReason || '',
+        isPublished: false
+      };
+      
+      console.log('Objet note à créer:', gradeObj);
+      
+      const grade = new this(gradeObj);
+      const savedGrade = await grade.save();
+      
+      console.log('✅ Note sauvegardée ID:', savedGrade._id);
+      grades.push(savedGrade);
+      
+    } catch (error) {
+      console.error('❌ Erreur sauvegarde note:', error.message);
+      console.error('Données problématiques:', gradeData);
+      throw error;
+    }
   }
   
-  console.log('[DEBUG] Toutes les notes sauvegardées, total:', grades.length);
+  console.log('✅ Toutes les notes sauvegardées, total:', grades.length);
   
   // Mettre à jour les statistiques de l'évaluation
-  await evaluation.calculateStats();
+  try {
+    await evaluation.calculateStats();
+    console.log('✅ Statistiques mises à jour');
+  } catch (error) {
+    console.error('⚠️ Erreur calcul stats:', error.message);
+  }
   
+  console.log('=== FIN createGradesFromEvaluation ===');
   return grades;
 };
 

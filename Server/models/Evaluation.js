@@ -177,11 +177,21 @@ evaluationSchema.methods.getSubjectCoefficient = async function() {
 evaluationSchema.methods.calculateStats = async function() {
   const Grade = mongoose.model('Grade');
   
+  console.log(`📊 CALCUL STATS pour évaluation: ${this.title} (${this._id})`);
+  
   // Récupérer toutes les notes pour cette évaluation
   const grades = await Grade.find({ 
-    evaluationId: this._id,
-    isPublished: true 
+    evaluationId: this._id
+    // Enlever le filtre isPublished: true car les notes sont créées avec isPublished: false par défaut
   });
+  
+  console.log(`📊 Notes trouvées: ${grades.length}`);
+  console.log(`📊 Détail notes:`, grades.map(g => ({ 
+    studentId: g.studentId, 
+    score: g.score, 
+    isAbsent: g.isAbsent, 
+    isPublished: g.isPublished 
+  })));
   
   const Class = mongoose.model('Class');
   const classInfo = await Class.findById(this.classId).populate('students');
@@ -189,6 +199,8 @@ evaluationSchema.methods.calculateStats = async function() {
   const totalStudents = classInfo ? classInfo.students.length : 0;
   const submittedGrades = grades.filter(g => g.score !== null && g.score !== undefined).length;
   const absentCount = grades.filter(g => g.isAbsent === true).length;
+  
+  console.log(`📊 Total étudiants: ${totalStudents}, Notes soumises: ${submittedGrades}, Absents: ${absentCount}`);
   
   let averageScore, minScore, maxScore;
   

@@ -31,7 +31,7 @@ const createEvaluation = async (req, res) => {
     // Résoudre subjectId si ce n'est qu'un nom de matière
     let resolvedSubjectId = subjectId;
     if (!resolvedSubjectId && subject) {
-      console.log('Recherche matière:', subject, 'dans école:', schoolId);
+      
       
       // Si pas de schoolId, utiliser la première école disponible
       let searchSchoolId = schoolId;
@@ -40,7 +40,7 @@ const createEvaluation = async (req, res) => {
         const firstSchool = await School.findOne({});
         if (firstSchool) {
           searchSchoolId = firstSchool._id;
-          console.log('Utilisation de l\'école par défaut:', firstSchool.name, '(ID:', firstSchool._id, ')');
+          
         }
       }
       
@@ -48,13 +48,13 @@ const createEvaluation = async (req, res) => {
         name: subject,
         schoolId: searchSchoolId 
       });
-      console.log('Matière trouvée:', subjectDoc);
+      
       if (subjectDoc) {
         resolvedSubjectId = subjectDoc._id;
       } else {
         // Vérifions toutes les matières de cette école
         const allSubjects = await Subject.find({ schoolId: searchSchoolId });
-        console.log('Toutes les matières de cette école:', allSubjects.map(s => s.name));
+        
         return res.status(400).json({
           success: false,
           message: `Matière "${subject}" non trouvée dans cette école. Matières disponibles: ${allSubjects.map(s => s.name).join(', ')}`
@@ -71,36 +71,29 @@ const createEvaluation = async (req, res) => {
 
     // Valider que l'enseignant peut enseigner cette matière dans cette classe
     const classInfo = await Class.findById(classId);
-    console.log('Vérification des droits d\'accès...');
-    console.log('ID enseignant:', teacherId);
-    console.log('Classe trouvée:', classInfo ? 'OUI' : 'NON');
+    
+    
+    
     if (classInfo) {
-      console.log('Enseignants de la classe:', classInfo.teachers);
-      console.log('Nom de la classe:', classInfo.name);
+      
+      
     }
     
     // Vérifier l'accès via assignation directe ou via l'emploi du temps
     let hasAccess = classInfo?.teachers?.includes(teacherId) || false;
-    console.log('Accès via assignation directe:', hasAccess);
+    
     
     if (!hasAccess) {
       // Vérifier l'accès via l'emploi du temps (Schedule)
       const Schedule = require('../models/Schedule');
       
-      console.log('Recherche dans Schedule avec:');
-      console.log('  teacherId:', teacherId);
-      console.log('  classId:', classId);
-      console.log('  subjectId:', resolvedSubjectId);
+      
+      
+      
+      
       
       // D'abord, vérifions tous les schedules de cet enseignant
       const allSchedules = await Schedule.find({ teacherId: teacherId });
-      console.log(`Tous les schedules de l'enseignant (${allSchedules.length}):`, 
-        allSchedules.map(s => ({
-          classId: s.classId,
-          subjectId: s.subjectId,
-          isActive: s.isActive
-        }))
-      );
       
       const scheduleAccess = await Schedule.findOne({
         teacherId: teacherId,
@@ -108,8 +101,6 @@ const createEvaluation = async (req, res) => {
         subjectId: resolvedSubjectId,
         isActive: true
       });
-      
-      console.log('Vérification accès via Schedule (même classe + même matière):', scheduleAccess ? 'Trouvé' : 'Non trouvé');
       
       // Si pas trouvé avec la matière exacte, vérifions si l'enseignant a accès à cette classe pour n'importe quelle matière
       if (!scheduleAccess) {
@@ -119,19 +110,10 @@ const createEvaluation = async (req, res) => {
           isActive: true
         });
         
-        console.log('Vérification accès via Schedule (même classe, toute matière):', classScheduleAccess ? 'Trouvé' : 'Non trouvé');
-        
         if (classScheduleAccess) {
-          console.log('Schedule trouvé pour la classe (autre matière):', {
-            classId: classScheduleAccess.classId,
-            subjectId: classScheduleAccess.subjectId,
-            matière_demandée: resolvedSubjectId,
-            matière_trouvée: classScheduleAccess.subjectId
-          });
           hasAccess = true;
         }
       } else {
-        console.log('Schedule trouvé (même classe + même matière):', scheduleAccess);
         hasAccess = true;
       }
     }
@@ -169,10 +151,10 @@ const createEvaluation = async (req, res) => {
     }
 
     // Mapper et valider les données avant création
-    console.log('Données reçues pour création évaluation:');
-    console.log('- type:', type);
-    console.log('- semester:', semester, '(type:', typeof semester, ')');
-    console.log('- plannedDate:', plannedDate);
+    
+    
+    
+    
     
     // Convertir le semestre en nombre si c'est une chaîne
     let numericSemester = semester;
@@ -220,10 +202,10 @@ const createEvaluation = async (req, res) => {
       }
     }
     
-    console.log('Données converties:');
-    console.log('- evaluationType:', evaluationType);
-    console.log('- numericSemester:', numericSemester);
-    console.log('- formattedDate:', formattedDate);
+    
+    
+    
+    
 
     // Créer l'évaluation
     const evaluation = new Evaluation({
@@ -275,8 +257,6 @@ const getTeacherEvaluations = async (req, res) => {
     const teacherId = req.user.userId;
     const { academicYear, semester, status } = req.query;
 
-    console.log('Récupération évaluations pour teacherId:', teacherId);
-
     const query = { teacherId };
     if (academicYear) query.academicYear = academicYear;
     if (semester) query.semester = parseInt(semester);
@@ -287,19 +267,29 @@ const getTeacherEvaluations = async (req, res) => {
       .populate('subjectId', 'name code')
       .sort({ plannedDate: -1 });
 
-    console.log('Évaluations trouvées:', evaluations.length);
-    if (evaluations.length > 0) {
-      console.log('Première évaluation:', {
-        id: evaluations[0]._id,
-        title: evaluations[0].title,
-        subjectId: evaluations[0].subjectId,
-        classId: evaluations[0].classId
+    // Calculer les statistiques pour chaque évaluation
+    const evaluationsWithStats = await Promise.all(evaluations.map(async (evaluation) => {
+      try {
+        await evaluation.calculateStats();
+        return evaluation;
+      } catch (error) {
+        console.error(`Erreur calcul stats pour évaluation ${evaluation._id}:`, error);
+        // Retourner l'évaluation sans stats en cas d'erreur
+        return evaluation;
+      }
+    }));
+
+    if (evaluationsWithStats.length > 0) {
+      console.log('Première évaluation avec stats:', {
+        id: evaluationsWithStats[0]._id,
+        title: evaluationsWithStats[0].title,
+        stats: evaluationsWithStats[0].stats
       });
     }
 
     res.json({
       success: true,
-      data: evaluations
+      data: evaluationsWithStats
     });
 
   } catch (error) {
@@ -338,17 +328,40 @@ const getEvaluationWithStudents = async (req, res) => {
       evaluationId
     }).select('studentId score isAbsent comment');
 
-    console.log('DEBUG - Evaluation found:', evaluation);
-    console.log('DEBUG - Students from classId:', evaluation.classId.students);
-    console.log('DEBUG - First student:', evaluation.classId.students?.[0]);
+    console.log('Notes existantes trouvées:', existingGrades.length);
+
+    // Intégrer les notes existantes avec les données d'étudiants
+    const studentsWithGrades = evaluation.classId.students.map(student => {
+      const existingGrade = existingGrades.find(g => 
+        g.studentId.toString() === student._id.toString()
+      );
+      
+      console.log(`Étudiant ${student.name} (${student._id}):`, {
+        hasExistingGrade: !!existingGrade,
+        grade: existingGrade ? existingGrade.score : 0,
+        comment: existingGrade ? existingGrade.comment : '',
+        isAbsent: existingGrade ? existingGrade.isAbsent : false
+      });
+      
+      return {
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        grade: existingGrade ? existingGrade.score : 0,
+        comment: existingGrade ? existingGrade.comment : '',
+        isAbsent: existingGrade ? existingGrade.isAbsent : false,
+        graded: !!existingGrade
+      };
+    });
+
+    console.log('Étudiants avec notes:', studentsWithGrades.length);
+    console.log('Premier étudiant avec données:', studentsWithGrades[0]);
+    console.log('Notes dans studentsWithGrades:', studentsWithGrades.map(s => ({ id: s._id, name: s.name, grade: s.grade, graded: s.graded })));
 
     res.json({
       success: true,
-      data: {
-        evaluation,
-        students: evaluation.classId.students,
-        existingGrades: existingGrades
-      }
+      data: studentsWithGrades,
+      evaluation: evaluation
     });
 
   } catch (error) {
@@ -368,10 +381,11 @@ const submitGrades = async (req, res) => {
     const { grades } = req.body; // Array of { studentId, score, isAbsent, comment }
     const teacherId = req.user.userId;
 
-    console.log('[DEBUG] submitGrades - Début sauvegarde des notes');
-    console.log('[DEBUG] evaluationId:', evaluationId);
-    console.log('[DEBUG] teacherId:', teacherId);
-    console.log('[DEBUG] grades reçues:', JSON.stringify(grades, null, 2));
+    console.log('=== DEBUT SUBMIT GRADES ===');
+    console.log('evaluationId:', evaluationId);
+    console.log('teacherId:', teacherId);
+    console.log('nombre de notes reçues:', grades?.length);
+    console.log('premier grade:', grades?.[0]);
 
     // Vérifier que l'évaluation appartient à l'enseignant
     const evaluation = await Evaluation.findOne({
@@ -386,36 +400,51 @@ const submitGrades = async (req, res) => {
       });
     }
 
+    console.log('Évaluation trouvée:', evaluation.title);
+
     // Récupérer les informations de la matière
     const subject = await Subject.findById(evaluation.subjectId);
+    console.log('Matière trouvée:', subject?.name);
 
     // Préparer les données pour la création des notes
     const gradesData = grades.map(grade => ({
       ...grade,
-      subject: subject.name
+      subject: subject?.name || 'Matière inconnue'
     }));
 
+    console.log('Données préparées pour sauvegarde:', gradesData.length, 'notes');
+
     // Supprimer les anciennes notes si elles existent
-    await Grade.deleteMany({ evaluationId });
+    const deletedCount = await Grade.deleteMany({ evaluationId });
+    console.log('Notes supprimées:', deletedCount.deletedCount);
 
     // Créer les nouvelles notes
-    console.log('[DEBUG] Données à sauvegarder:', JSON.stringify(gradesData, null, 2));
     const createdGrades = await Grade.createGradesFromEvaluation(evaluationId, gradesData);
-    console.log('[DEBUG] Notes créées avec succès, nombre:', createdGrades.length);
+    console.log('Notes créées:', createdGrades.length);
 
     // Mettre à jour le statut de l'évaluation
     evaluation.status = 'corrigee';
     await evaluation.save();
-    console.log('[DEBUG] Évaluation mise à jour avec statut: corrigee');
+    console.log('Statut évaluation mis à jour');
+
+    // Calculer la moyenne pour la réponse
+    const validGrades = createdGrades.filter(g => !g.isAbsent && g.score > 0);
+    const averageGrade = validGrades.length > 0 
+      ? validGrades.reduce((sum, g) => sum + g.score, 0) / validGrades.length 
+      : 0;
+
+    console.log('Moyenne calculée:', averageGrade);
 
     res.json({
       success: true,
       message: 'Notes saisies avec succès',
       data: {
         gradesCount: createdGrades.length,
+        averageGrade: averageGrade,
         evaluation
       }
     });
+    console.log('=== FIN SUBMIT GRADES ===');
 
   } catch (error) {
     console.error('Erreur saisie notes:', error);

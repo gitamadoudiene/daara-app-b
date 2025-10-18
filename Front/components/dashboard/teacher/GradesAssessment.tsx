@@ -248,7 +248,8 @@ export function GradesAssessment() {
               title: evaluation.title,
               subjectId: evaluation.subjectId,
               subjectName: evaluation.subjectId?.name,
-              subject: evaluation.subject
+              subject: evaluation.subject,
+              stats: evaluation.stats // ← Ajouter les stats dans le log
             });
             
             // Mapper les types du serveur vers les types d'interface
@@ -263,9 +264,9 @@ export function GradesAssessment() {
               subject: evaluation.subjectId?.name || evaluation.subject || 'N/A',
               type: mappedType, // Utiliser le type mappé pour l'interface
               date: evaluation.plannedDate,
-              totalStudents: evaluation.classId?.students?.length || 0,
-              gradedStudents: evaluation.submittedGrades || 0,
-              averageGrade: evaluation.averageScore || 0,
+              totalStudents: evaluation.stats?.totalStudents || evaluation.classId?.students?.length || 0,
+              gradedStudents: evaluation.stats?.submittedGrades || evaluation.submittedGrades || 0,
+              averageGrade: evaluation.stats?.averageScore || evaluation.averageScore || 0,
               status: evaluation.status === 'programmee' ? 'pending' : 
                       evaluation.status === 'en_cours' ? 'inProgress' : 'completed',
               semester: evaluation.semester || 1,
@@ -492,7 +493,6 @@ export function GradesAssessment() {
   const loadStudentsForGrading = async (assessmentId: string) => {
     try {
       setIsLoading(true);
-      console.log('Chargement des étudiants pour l\'évaluation ID:', assessmentId);
       
       // Utiliser l'API correcte pour récupérer les étudiants d'une classe spécifique
       const assessment = assessments.find(a => a._id === assessmentId || a.id === assessmentId);
@@ -501,7 +501,6 @@ export function GradesAssessment() {
       }
       
       // Récupérer les étudiants de la classe directement depuis l'endpoint d'évaluation
-      console.log('[DEBUG] Utilisation de l\'endpoint évaluation pour récupérer les étudiants');
       const response = await fetch(`http://localhost:5000/api/evaluations/${assessmentId}/students`, {
         headers: { 
           'Content-Type': 'application/json',
@@ -510,16 +509,12 @@ export function GradesAssessment() {
       });
       
       const data = await response.json();
-      console.log('[DEBUG] Réponse de l\'API pour les étudiants:', data);
-      console.log('[DEBUG] data.success:', data.success);
-      console.log('[DEBUG] data.data:', data.data);
-      console.log('[DEBUG] Type de data.data:', typeof data.data);
-      console.log('[DEBUG] Is Array?:', Array.isArray(data.data));
-      console.log('[DEBUG] Keys of data:', Object.keys(data));
+      
+      console.log('=== FRONTEND RESPONSE ===');
+      console.log('Raw API response:', data);
+      console.log('Students array received:', data.data);
       
       if (data.success) {
-        console.log('[DEBUG] ✅ Entrée dans data.success - transformation commencée');
-        
         // Vérifier le format des données et s'adapter en conséquence
         let studentsArray = [];
         
@@ -532,66 +527,52 @@ export function GradesAssessment() {
           } else if (data.data.evaluation && data.data.evaluation.students && Array.isArray(data.data.evaluation.students)) {
             studentsArray = data.data.evaluation.students;
           } else {
-            console.error('[DEBUG] Structure de données inattendue:', data.data);
             throw new Error('Format de données inattendu pour les étudiants');
           }
         } else if (data.students && Array.isArray(data.students)) {
           studentsArray = data.students;
         } else {
-          console.error('[DEBUG] Aucun tableau d\'étudiants trouvé dans:', data);
           throw new Error('Aucun tableau d\'étudiants trouvé');
         }
         
-        console.log('[DEBUG] Tableau d\'étudiants extrait:', studentsArray);
-        console.log('[DEBUG] Nombre d\'étudiants:', studentsArray.length);
-        
         // Transformer les données pour correspondre à l'interface Student
         const students = studentsArray.map((student: any) => {
-          console.log('[DEBUG] 🔄 Transformation étudiant:', student);
-          console.log('[DEBUG] 📝 student.name value:', student.name);
-          console.log('[DEBUG] 🔑 Keys of student:', Object.keys(student));
-          
           // Mapping robuste avec vérification des champs
           const studentName = student.name || 
                              student.fullName || 
                              (student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : '') ||
                              'Nom manquant';
                              
-          const transformedStudent = {
+          return {
             _id: student._id || student.id,
             name: studentName,
             email: student.email,
-            grade: 0,
-            comment: '',
-            graded: false
+            grade: student.grade || 0, // Récupérer la note existante
+            comment: student.comment || '',
+            isAbsent: student.isAbsent || false, // Récupérer le statut d'absence
+            graded: student.graded || false // Savoir si l'étudiant a déjà été noté
           };
-          console.log('[DEBUG] ✨ Étudiant transformé:', transformedStudent);
-          return transformedStudent;
         });
         
-        console.log('[DEBUG] 📋 Étudiants transformés (total:', students.length, '):', students);
-        console.log('[DEBUG] 👤 Premier étudiant transformé:', students[0]);
+        console.log('=== STUDENTS TRANSFORMED ===');
+        console.log('Final students array:', students);
+        console.log('First student with grades:', students[0]);
         
         setStudentsToGrade(students);
-        console.log('[DEBUG] 🎯 studentsToGrade mis à jour avec:', students);
-        console.log('[DEBUG] 🎯 Premier étudiant dans le state:', students[0]);
         
-        // Forcer le re-render en créant une nouvelle référence
-        setStudentsToGrade([...students]);
-        
-        // Initialiser les entrées de notes
+        // Initialiser les entrées de notes avec les données existantes
         const initialGradesInput: {[studentId: string]: GradeInput} = {};
         students.forEach((student: Student) => {
           initialGradesInput[student._id] = {
             studentId: student._id,
-            score: student.grade || 0,
-            comment: student.comment || ''
+            score: student.grade || 0, // Utiliser la note existante
+            comment: student.comment || '',
+            isAbsent: student.isAbsent || false // Utiliser le statut d'absence existant
           };
         });
         
         setGradesInput(initialGradesInput);
       } else {
-        console.warn('Échec du chargement des étudiants:', data.message);
         toast({
           title: "Erreur",
           description: "Impossible de charger les étudiants de cette classe.",
@@ -615,14 +596,17 @@ export function GradesAssessment() {
     if (!selectedAssessment) return;
     
     setIsSubmitting(true);
-    console.log('Soumission des notes pour l\'évaluation:', selectedAssessment);
-    console.log('Données de notes à soumettre:', gradesInput);
     
     try {
       // Inclure toutes les notes (même les 0 et les absents)
       const gradesToSubmit = Object.values(gradesInput).filter(grade => 
         grade.score > 0 || grade.isAbsent
       );
+      
+      console.log('=== FRONTEND SUBMIT GRADES ===');
+      console.log('Evaluation ID:', selectedAssessment._id || selectedAssessment.id);
+      console.log('Grades input:', gradesInput);
+      console.log('Grades to submit:', gradesToSubmit);
       
       if (gradesToSubmit.length === 0) {
         toast({
@@ -649,7 +633,12 @@ export function GradesAssessment() {
         return;
       }
       
-      console.log('Notes filtrées à soumettre:', gradesToSubmit);
+      const requestBody = {
+        grades: gradesToSubmit,
+        evaluationId: selectedAssessment._id || selectedAssessment.id
+      };
+      
+      console.log('Request body:', requestBody);
       
       // Utiliser le nouveau endpoint pour soumettre les notes
       const response = await fetch(`http://localhost:5000/api/evaluations/${selectedAssessment._id || selectedAssessment.id}/grades`, {
@@ -658,14 +647,11 @@ export function GradesAssessment() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('daara_token')}`
         },
-        body: JSON.stringify({
-          grades: gradesToSubmit,
-          evaluationId: selectedAssessment._id || selectedAssessment.id
-        })
+        body: JSON.stringify(requestBody)
       });
       
       const data = await response.json();
-      console.log('Réponse du serveur pour la soumission des notes:', data);
+      console.log('Server response:', data);
       
       if (data.success) {
         const gradedCount = gradesToSubmit.filter(g => !g.isAbsent).length;
@@ -684,6 +670,8 @@ export function GradesAssessment() {
               ? 'completed' 
               : gradedCount > 0 ? 'inProgress' : assessment.status;
             
+            console.log('Updating assessment with average:', data.data?.averageGrade);
+            
             return {
               ...assessment,
               gradedStudents: newGradedStudents,
@@ -694,10 +682,10 @@ export function GradesAssessment() {
           return assessment;
         });
         
+        console.log('Updated assessments:', updatedAssessments);
         setAssessments(updatedAssessments);
         setShowGradeDialog(false);
       } else {
-        console.error('Erreur lors de la soumission des notes:', data.message);
         toast({
           title: "❌ Échec de l'enregistrement",
           description: data.message || "Impossible d'enregistrer les notes. Vérifiez les données saisies.",
@@ -723,8 +711,6 @@ export function GradesAssessment() {
     setIsSubmitting(true);
     
     try {
-      console.log('Suppression de l\'évaluation:', assessmentToDelete._id || assessmentToDelete.id);
-      
       const response = await fetch(`http://localhost:5000/api/evaluations/${assessmentToDelete._id || assessmentToDelete.id}`, {
         method: 'DELETE',
         headers: { 
@@ -734,7 +720,6 @@ export function GradesAssessment() {
       });
       
       const data = await response.json();
-      console.log('Réponse de suppression:', data);
       
       if (data.success || response.ok) {
         toast({
@@ -750,7 +735,6 @@ export function GradesAssessment() {
         setShowDeleteDialog(false);
         setAssessmentToDelete(null);
       } else {
-        console.error('Erreur lors de la suppression:', data.message);
         toast({
           title: "❌ Échec de la suppression",
           description: data.message || "Impossible de supprimer l'évaluation. Veuillez réessayer.",
@@ -771,8 +755,6 @@ export function GradesAssessment() {
 
   // Créer une nouvelle évaluation
   const handleCreateAssessment = async () => {
-    console.log('Tentative de création d\'évaluation avec:', newAssessment);
-    
     // Valider le formulaire avant soumission
     const errors = validateForm(newAssessment);
     setFormErrors(errors);
@@ -790,7 +772,6 @@ export function GradesAssessment() {
     
     try {
       const selectedClass = classes.find(c => c._id === newAssessment.classId);
-      console.log('Classe sélectionnée:', selectedClass);
       
       // Préparer les données pour le nouveau système d'évaluation
       const evaluationData = {
@@ -808,10 +789,6 @@ export function GradesAssessment() {
         subject: newAssessment.subject // Ajout du subject comme string pour compatibilité
       };
       
-      console.log('Données à envoyer:', evaluationData);
-      console.log('Matière sélectionnée:', newAssessment.subject);
-      console.log('Matières disponibles:', subjects);
-      
       // Utiliser le nouveau endpoint d'évaluation
       const response = await fetch('http://localhost:5000/api/evaluations', {
         method: 'POST',
@@ -823,9 +800,6 @@ export function GradesAssessment() {
       });
       
       const data = await response.json();
-      console.log('Réponse du serveur:', data);
-      console.log('Status de la réponse:', response.status);
-      console.log('Response OK:', response.ok);
       
       if (data.success) {
         const classData = classes.find(c => c._id === newAssessment.classId);
@@ -859,16 +833,12 @@ export function GradesAssessment() {
           description: data.data.description || ''
         };
         
-        console.log('Nouvelle évaluation formatée:', newAssessmentWithId);
-        
         setAssessments([...assessments, newAssessmentWithId]);
         
         // Réinitialiser le formulaire et fermer la boîte de dialogue
         resetForm();
         setShowCreateDialog(false);
       } else {
-        console.error('Erreur lors de la création de l\'évaluation:', data.message);
-        console.error('Données complètes de l\'erreur:', data);
         toast({
           title: "❌ Échec de la création",
           description: data.message || "Impossible de créer l'évaluation. Vérifiez les données saisies.",
@@ -877,7 +847,6 @@ export function GradesAssessment() {
       }
     } catch (error) {
       console.error('Erreur lors de la création de l\'évaluation:', error);
-      console.error('Détails de l\'erreur:', error);
       toast({
         title: "❌ Erreur de connexion",
         description: "Problème de communication avec le serveur. Veuillez réessayer.",
@@ -1020,7 +989,7 @@ export function GradesAssessment() {
                 <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                   <div>
                     <CardTitle className="text-lg">{assessment.title}</CardTitle>
-                    <CardDescription className="flex items-center flex-wrap gap-2 mt-1">
+                    <div className="flex items-center flex-wrap gap-2 mt-1 text-sm text-muted-foreground">
                       <Badge variant="outline">{assessment.class}</Badge>
                       <Badge variant="outline">{assessment.subject}</Badge>
                       <Badge className={getTypeColor(assessment.type)}>
@@ -1029,7 +998,7 @@ export function GradesAssessment() {
                       <Badge className={getStatusColor(assessment.status)}>
                         {getStatusLabel(assessment.status)}
                       </Badge>
-                    </CardDescription>
+                    </div>
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {formatDate(assessment.date)}
@@ -1068,7 +1037,7 @@ export function GradesAssessment() {
                     </div>
                     <div className="text-center p-3 bg-red-50 rounded-lg">
                       <div className="text-lg font-semibold text-red-700">
-                        {assessment.totalStudents - assessment.gradedStudents}
+                        {Math.max(0, assessment.totalStudents - assessment.gradedStudents)}
                       </div>
                       <div className="text-xs text-red-600">En attente</div>
                     </div>
@@ -1168,12 +1137,7 @@ export function GradesAssessment() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(() => {
-                    console.log('[DEBUG] 🎭 studentsToGrade avant rendu:', studentsToGrade);
-                    return null;
-                  })()}
                   {studentsToGrade.map((student) => {
-                    console.log('[DEBUG] Rendu étudiant:', student);
                     const isAbsent = gradesInput[student._id]?.isAbsent || false;
                     const currentScore = gradesInput[student._id]?.score || 0;
                     const isValidScore = currentScore >= 0 && currentScore <= 20;
