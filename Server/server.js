@@ -18,6 +18,7 @@ const classRoutes = require('./routes/class');
 const subjectRoutes = require('./routes/subject');
 const scheduleRoutes = require('./routes/schedule');
 const gradeRoutes = require('./routes/grade');
+const attendanceRoutes = require('./routes/attendance');
 
 // Nouvelles routes pour le système d'évaluation
 const evaluationRoutes = require('./routes/evaluation');
@@ -34,6 +35,7 @@ app.use('/api/classes', classRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/grades', gradeRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 // Nouvelles routes pour le système d'évaluation
 app.use('/api/evaluations', evaluationRoutes);
