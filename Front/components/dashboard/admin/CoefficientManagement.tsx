@@ -207,39 +207,89 @@ export function CoefficientManagement() {
     }
   };
 
-  const loadSchoolSettings = () => {
+  const loadSchoolSettings = async () => {
     try {
-      const savedSettings = localStorage.getItem('school-settings');
-      if (savedSettings) {
-        setSchoolSettings(JSON.parse(savedSettings));
+      // Récupérer le schoolId du token
+      const token = localStorage.getItem('daara_token');
+      const tokenData = token ? JSON.parse(atob(token.split('.')[1])) : null;
+      const schoolId = tokenData?.schoolId;
+      
+      if (!schoolId) {
+        throw new Error('ID de l\'école non trouvé');
+      }
+      
+      const response = await fetch(`http://localhost:5000/api/settings/${schoolId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors du chargement depuis le serveur');
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        setSchoolSettings({
+          defaultSemester: data.data.defaultSemester,
+          defaultAcademicYear: data.data.defaultAcademicYear
+        });
       } else {
-        // Valeurs par défaut avec format année académique correct
-        const currentYear = new Date().getFullYear();
-        const defaultSettings = {
-          defaultSemester: 1,
-          defaultAcademicYear: `${currentYear}-${currentYear + 1}`
-        };
-        setSchoolSettings(defaultSettings);
+        throw new Error(data.message || 'Erreur lors du chargement');
       }
     } catch (error) {
       console.error('Erreur lors du chargement des paramètres:', error);
+      // En cas d'erreur, utiliser les valeurs par défaut
+      const currentYear = new Date().getFullYear();
+      setSchoolSettings({
+        defaultSemester: 1,
+        defaultAcademicYear: `${currentYear}-${currentYear + 1}`
+      });
     }
   };
 
-  const saveSchoolSettings = () => {
+  const saveSchoolSettings = async () => {
     try {
       console.log('💾 Sauvegarde des paramètres:', schoolSettings);
-      localStorage.setItem('school-settings', JSON.stringify(schoolSettings));
-      console.log('✅ Paramètres sauvegardés dans localStorage');
-      console.log('🔍 Vérification localStorage:', localStorage.getItem('school-settings'));
-      toast.success('Paramètres de l\'école sauvegardés', {
-        description: `Semestre: ${schoolSettings.defaultSemester}, Année: ${schoolSettings.defaultAcademicYear}`,
-        duration: 4000,
+      
+      // Récupérer le schoolId du token
+      const token = localStorage.getItem('daara_token');
+      const tokenData = token ? JSON.parse(atob(token.split('.')[1])) : null;
+      const schoolId = tokenData?.schoolId;
+      
+      if (!schoolId) {
+        throw new Error('ID de l\'école non trouvé');
+      }
+      
+      const response = await fetch(`http://localhost:5000/api/settings/${schoolId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          defaultSemester: schoolSettings.defaultSemester,
+          defaultAcademicYear: schoolSettings.defaultAcademicYear
+        })
       });
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors de la sauvegarde sur le serveur');
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Paramètres de l\'école sauvegardés', {
+          description: `Semestre: ${schoolSettings.defaultSemester}, Année: ${schoolSettings.defaultAcademicYear}`,
+          duration: 4000,
+        });
+      } else {
+        throw new Error(data.message || 'Erreur lors de la sauvegarde');
+      }
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
       toast.error('Erreur lors de la sauvegarde', {
-        description: 'Impossible de sauvegarder les paramètres de l\'école',
+        description: error.message || 'Impossible de sauvegarder les paramètres de l\'école',
         duration: 6000,
       });
     }

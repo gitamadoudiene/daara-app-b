@@ -24,6 +24,7 @@ const attendanceRoutes = require('./routes/attendance');
 const evaluationRoutes = require('./routes/evaluation');
 const bulletinRoutes = require('./routes/bulletin');
 const coefficientRoutes = require('./routes/coefficient');
+const settingsRoutes = require('./routes/settings');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -41,6 +42,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/evaluations', evaluationRoutes);
 app.use('/api/bulletins', bulletinRoutes);
 app.use('/api/coefficients', coefficientRoutes);
+app.use('/api/settings', settingsRoutes);
 
 const PORT = process.env.PORT || 5000;
 

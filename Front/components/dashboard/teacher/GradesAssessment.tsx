@@ -460,22 +460,58 @@ export function GradesAssessment() {
   };
 
   // Charger les paramètres par défaut pour le semestre et l'année académique
-  const loadDefaultSettings = () => {
-    // Utiliser les paramètres du hook schoolSettings
-    return {
-      semester: schoolSettings.defaultSemester,
-      academicYear: schoolSettings.defaultAcademicYear
-    };
+  const loadDefaultSettings = async () => {
+    try {
+      // Récupérer le schoolId du token
+      const token = localStorage.getItem('daara_token');
+      const tokenData = token ? JSON.parse(atob(token.split('.')[1])) : null;
+      const schoolId = tokenData?.schoolId;
+      
+      if (!schoolId) {
+        throw new Error('ID de l\'école non trouvé');
+      }
+      
+      const response = await fetch(`http://localhost:5000/api/settings/${schoolId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors du chargement des paramètres');
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        return {
+          semester: data.data.defaultSemester,
+          academicYear: data.data.defaultAcademicYear
+        };
+      } else {
+        throw new Error(data.message || 'Erreur lors du chargement');
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des paramètres:', error);
+      // En cas d'erreur, utiliser les valeurs par défaut actuelles
+      return {
+        semester: schoolSettings.defaultSemester,
+        academicYear: schoolSettings.defaultAcademicYear
+      };
+    }
   };
 
   // Initialiser les paramètres par défaut lors de l'ouverture du formulaire
-  const initializeFormWithDefaults = () => {
-    const defaults = loadDefaultSettings();
+  const initializeFormWithDefaults = async () => {
+    const defaults = await loadDefaultSettings();
     setNewAssessment(prev => ({
       ...prev,
       semester: defaults.semester,
       academicYear: defaults.academicYear
     }));
+    
+    // Mettre à jour également les états globaux
+    setCurrentSemester(defaults.semester);
+    setCurrentAcademicYear(defaults.academicYear);
   };
 
   // Filtrer les évaluations en fonction des critères sélectionnés
