@@ -634,12 +634,12 @@ export function UserManagement() {
             Gérez tous les utilisateurs de {user?.school?.name || 'votre établissement'}
           </p>
         </div>
-        <div className="flex items-center space-x-2">
+        {/* <div className="flex items-center space-x-2">
           <Button onClick={() => setIsCreateUserOpen(true)} className="bg-blue-600 hover:bg-blue-700">
             <UserPlus className="w-4 h-4 mr-2" />
             Créer Utilisateur
           </Button>
-        </div>
+        </div> */}
       </div>
 
       {/* Stats Cards */}

@@ -658,6 +658,13 @@ export function AdminDashboard() {
   // Fonction pour créer un étudiant
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Vérifier que tous les champs obligatoires sont remplis
+    if (!studentForm.name || !studentForm.phone) {
+      toast.error('Veuillez remplir tous les champs obligatoires (nom, téléphone)');
+      return;
+    }
+    
     try {
       const token = localStorage.getItem('daara_token');
       const response = await fetch('http://localhost:5000/api/users/students', {
@@ -672,7 +679,7 @@ export function AdminDashboard() {
           phone: studentForm.phone,
           address: studentForm.address,
           schoolId: user?.schoolId, // École verrouillée
-          classId: studentForm.classId,
+          ...(studentForm.classId && { classId: studentForm.classId }), // inclure classId seulement s'il est défini
           parentId: studentForm.parentId,
           dateOfBirth: studentForm.dateOfBirth,
           gender: studentForm.gender,
@@ -1302,21 +1309,7 @@ export function AdminDashboard() {
                               </SelectContent>
                             </Select>
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="student-class">Classe</Label>
-                            <Select value={studentForm.classId} onValueChange={(value) => setStudentForm({...studentForm, classId: value})}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner une classe" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {classes.map((classItem) => (
-                                  <SelectItem key={classItem.id} value={classItem.id}>
-                                    {classItem.name} - {classItem.level}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
+                          {/* Le champ classe a été retiré - l'assignation se fera dans la section dédiée */}
                           <div className="space-y-2">
                             <Label htmlFor="student-parent">Parent</Label>
                             <div className="relative" data-parent-search>
@@ -1490,7 +1483,7 @@ export function AdminDashboard() {
                   <Button
                     variant="outline"
                     className="w-full justify-start h-auto py-3"
-                    onClick={() => handlePageChange('reports')}
+                    onClick={() => handlePageChange('schedule')}
                   >
                     <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Emploi du Temps</span>

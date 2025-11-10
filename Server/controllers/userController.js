@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Class = require('../models/Class');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 
@@ -245,8 +246,8 @@ exports.createStudent = async (req, res) => {
     const { name, email, phone, address, schoolId, classId, parentId, dateOfBirth, gender, status } = req.body;
     
     // Validation des champs requis
-    if (!name || !phone || !schoolId || !classId) {
-      return res.status(400).json({ message: 'Les champs nom, téléphone, école et classe sont obligatoires' });
+    if (!name || !phone || !schoolId) {
+      return res.status(400).json({ message: 'Les champs nom, téléphone et école sont obligatoires' });
     }
     
     // Validation du sexe si fourni
@@ -306,7 +307,7 @@ exports.createStudent = async (req, res) => {
     const savedStudent = await student.save();
     
     // Mettre à jour le nombre d'étudiants dans la classe si une classe est assignée
-    if (classId) {
+    if (classId && mongoose.Types.ObjectId.isValid(classId)) {
       await Class.findByIdAndUpdate(classId, { $inc: { studentCount: 1 } });
     }
     
@@ -457,10 +458,13 @@ exports.assignStudentsToClass = async (req, res) => {
       { classId: classId }
     );
 
+    // Calculer le nouveau nombre d'étudiants
+    const newEnrollmentCount = currentEnrollment + result.modifiedCount;
+
     // CORRECTION: Ajouter les étudiants au tableau students de la classe
     await Class.findByIdAndUpdate(classId, {
       $addToSet: { students: { $each: studentIds } }, // Ajouter sans doublons
-      studentCount: currentEnrollment + result.modifiedCount
+      studentCount: newEnrollmentCount
     });
 
     console.log(`✅ ${result.modifiedCount} étudiants ajoutés au tableau Class.students`);
